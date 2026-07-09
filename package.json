@@ -1,0 +1,21 @@
+{
+  "name": "flux",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@flarenetwork/flare-periphery-contract-artifacts": "^0.1.52",
+    "@flarenetwork/flare-periphery-contracts": "^0.1.52",
+    "@flarenetwork/flare-wagmi-periphery-package": "^3.6.0",
+    "dotenv": "^17.4.2",
+    "viem": "^2.55.0",
+    "xrpl": "^5.0.0"
+  }
+}
