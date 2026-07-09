@@ -221,8 +221,8 @@ export class FXRPDirectMintSDK {
         Memos: [
           {
             Memo: {
-              MemoType: Buffer.from('FAssets', 'ascii').toString('hex').toUpperCase(),
-              MemoFormat: Buffer.from('application/octet-stream', 'ascii').toString('hex').toUpperCase(),
+              MemoType: '46417373657473', // Hex for "FAssets"
+              MemoFormat: '6170706c69636174696f6e2f6f637465742d73747265616d', // Hex for "application/octet-stream"
               MemoData: params.memoHex,
             },
           },
