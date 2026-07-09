@@ -6,7 +6,7 @@ This document details the step-by-step progress made on the **FXRP Embed** proje
 
 ## 1. Project Progress & Milestones
 
-We have completed the **Gate 1 Validation Phase** (empirical direct-minting proof-of-concept) and established the foundational codebase.
+We have completed the **Gate 1 Validation Phase** (empirical direct-minting proof-of-concept) and transitioned to the **Core SDK Development Phase (Week 2)**.
 
 ### Phase 1: Environment Setup & Registry Querying
 * **What we did:** Initialized the Node project and installed `viem`, `xrpl`, `dotenv`, and official Flare periphery contract artifacts.
@@ -31,17 +31,22 @@ We have completed the **Gate 1 Validation Phase** (empirical direct-minting proo
 * **Limiter State:** The Coston2 testnet limiter states are currently saturated (Hourly limit: 100k XRP; current allocation: ~314k XRP).
 * **Scheduled Execution:** The contract scheduled release of the minted assets at `2026-07-10T00:44:36.000Z` (approx. 9.5 hours delay).
 
+### Phase 5: TypeScript Core SDK (Week 2 Milestone)
+* **What we did:** Created a robust, fully automated FAsset Direct Minting SDK in typed TypeScript under the `src/` folder.
+* **Architecture:**
+  * Main class `FXRPDirectMintSDK` orchestrating the lifecycle.
+  * Local wallet-signing, verifier interaction, and proof parsing.
+  * Automated polling and delay countdown tracking via custom event filters in `waitForDirectMintingOutcome`.
+* **Testing:** Compiled via `npx tsc` and successfully executed the test suite (`src/test_sdk_execute.ts`) proving direct on-chain submission, error identification (`0x40d8d67b`), and limiter state query.
+
 ---
 
 ## 2. Codebase Testing
 
-All files in the `scripts/` folder have been executed and tested against the live testnets (XRPL Altnet and Flare Coston2):
-1. `test_registry.js`: Verified contract resolution.
-2. `get_minting_params.js`: Fetched vault settings (lot size, fees).
-3. `execute_xrpl_payment.js`: Validated transaction signing and memo construction.
-4. `submit_fdc_request.js`: Confirmed FDC fee parsing and Hub interaction.
-5. `fetch_fdc_proof.js`: Verified proof lookup and file writing.
-6. `check_delay_state.js` & `check_limits.js`: Diagnosed protocol rate-limiting.
+All scripts and SDK components have been tested against the live testnets (XRPL Altnet and Flare Coston2):
+1. `src/test_sdk_execute.ts`: Verified correct ABI encoding, transaction transmission, error capture, and limiter state polling.
+2. `src/test_sdk_monitoring.ts`: Validated verifier and RPC connection settings.
+3. Original CommonJS debug scripts (under `scripts/` folder) verified and tracked.
 
 ---
 
@@ -50,7 +55,17 @@ All files in the `scripts/` folder have been executed and tested against the liv
 Below is the repository git tree showing feature branches, commits, and non-fast-forward merge integrations.
 
 ```
-*   1310d8e (HEAD -> main) merge: integrate direct mint execution and diagnostics
+*   916dca7 (HEAD -> main) merge: integrate Core SDK and automated testing suite
+|\  
+| * ad63190 (feature/sdk) feat: implement main FXRPDirectMintSDK and FDC polling utilities in TypeScript
+|/  
+*   a2ca0cb merge: integrate contract helper and analysis scripts
+|\  
+| * 7417ba8 (feature/helpers) chore: add contract analysis and event helper scripts
+|/  
+* cd64fd3 chore: update gitignore and dependencies for TypeScript setup
+* be39da1 docs: create summary and summard progress logs
+*   1310d8e merge: integrate direct mint execution and diagnostics
 |\  
 | * 531879a (feature/execute-mint) feat: add direct minting execution and rate limit verification scripts
 |/  
