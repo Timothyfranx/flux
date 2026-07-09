@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kinetic Finance Dashboard (Widget Integrator Demo)</title>
+  <meta name="description" content="Kinetic Finance Demo app integrating the FXRP direct minting widget.">
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    /* Integrator specific styles to customize the layout */
+    .integrator-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 20px;
+      width: 100%;
+    }
+    .integrator-logo {
+      font-family: 'Outfit', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-white);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .integrator-logo span {
+      background: linear-gradient(135deg, hsl(200, 100%, 50%) 0%, hsl(280, 100%, 70%) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .pool-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 40px;
+    }
+    .pool-table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .pool-table td {
+      padding: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 14px;
+    }
+    .pool-table tr:hover td {
+      background: rgba(255, 255, 255, 0.01);
+    }
+    .asset-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+    }
+    .asset-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 14px;
+    }
+    .btn-supply {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-white);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-supply:hover {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--bg-primary);
+      box-shadow: 0 4px 10px rgba(0, 240, 255, 0.2);
+    }
+    .integrator-layout {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+    .widget-mounting-zone {
+      margin-top: 20px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.15);
+      padding-top: 30px;
+    }
+    .widget-mounting-zone h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--color-primary);
+    }
+    .widget-mounting-zone p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Decorative background glow blobs -->
+  <div class="glow-blob blob-cyan"></div>
+  <div class="glow-blob blob-purple"></div>
+
+  <div class="dashboard-container">
+    <div class="glass-card integrator-layout">
+      <!-- Kinetic Finance App Header -->
+      <header class="integrator-header">
+        <div class="integrator-logo">
+          ⚡ <span>Kinetic Finance</span>
+        </div>
+        <div class="network-badge">DeFi Platform</div>
+      </header>
+
+      <!-- Lending Pools Table -->
+      <h2 style="font-family: 'Outfit', sans-serif; font-size: 20px; margin-bottom: 16px;">Supply Lending Markets</h2>
+      <table class="pool-table">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Total Supplied</th>
+            <th>Supply APY</th>
+            <th>Wallet Balance</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="asset-info">
+                <div class="asset-icon" style="color: hsl(200, 100%, 60%);">FLR</div>
+                <span>Flare</span>
+              </div>
+            </td>
+            <td>$12,450,120</td>
+            <td style="color: var(--color-success);">4.25%</td>
+            <td id="kinetic-flr-balance">-- FLR</td>
+            <td><button class="btn-supply">Supply</button></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="asset-info">
+                <div class="asset-icon" style="color: hsl(45, 100%, 55%);">XRP</div>
+                <span>Ripple</span>
+              </div>
+            </td>
+            <td>$28,140,850</td>
+            <td style="color: var(--color-success);">2.80%</td>
+            <td id="kinetic-xrp-balance">-- XRP</td>
+            <td><button class="btn-supply">Supply</button></td>
+          </tr>
+          <tr style="background: rgba(0, 240, 255, 0.02);">
+            <td>
+              <div class="asset-info">
+                <div class="asset-icon" style="background: rgba(0, 240, 255, 0.1); color: var(--color-primary);">fXRP</div>
+                <span>FXRP (FAsset)</span>
+              </div>
+            </td>
+            <td>$4,120,490</td>
+            <td style="color: var(--color-success);">6.85%</td>
+            <td>0.00 FXRP</td>
+            <td><button class="btn-supply" style="background: var(--color-primary); color: var(--bg-primary); border-color: var(--color-primary);">Supply FXRP</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Integrated FXRP Embed Mounting Zone -->
+      <div class="widget-mounting-zone">
+        <h3>Need FXRP to Supply Kinetic Markets?</h3>
+        <p>Use the integrated trustless widget below to mint FXRP directly from your Ripple testnet XRP account in minutes:</p>
+        
+        <!-- The Droppable FXRP Mint Widget Container -->
+        <div id="fxrp-mint-widget"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load the Widget Controller script from the parent build directory -->
+  <script src="../dist/widget.js"></script>
+  
+  <!-- Mini script to replicate balances display on the parent Kinetic app -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Poll the widget elements when they are loaded to display on the parent app
+      setTimeout(() => {
+        const xrpVal = document.getElementById('xrpl-balance')?.innerText;
+        const flrVal = document.getElementById('flare-balance')?.innerText;
+        if (xrpVal) document.getElementById('kinetic-xrp-balance').innerText = xrpVal;
+        if (flrVal) document.getElementById('kinetic-flr-balance').innerText = flrVal;
+      }, 3000);
+    });
+  </script>
+</body>
+</html>

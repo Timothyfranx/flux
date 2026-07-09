@@ -20,43 +20,42 @@ let minterFeeShareBIPS = 10; // 0.1% default
 let executorFeeXRP = 0.1;
 let minimumFeeXRP = 0.1;
 
-// UI Elements
-const xrplBalanceEl = document.getElementById('xrpl-balance')!;
-const xrplAddressEl = document.getElementById('xrpl-address')!;
-const flareBalanceEl = document.getElementById('flare-balance')!;
-const flareAddressEl = document.getElementById('flare-address')!;
+// UI Elements (bound at mount-time)
+let xrplBalanceEl: HTMLElement;
+let xrplAddressEl: HTMLElement;
+let flareBalanceEl: HTMLElement;
+let flareAddressEl: HTMLElement;
 
-const recipientAddressInput = document.getElementById('recipient-address') as HTMLInputElement;
-const lotCountValEl = document.getElementById('lot-count-value')!;
-const lotDecBtn = document.getElementById('lot-dec')!;
-const lotIncBtn = document.getElementById('lot-inc')!;
+let recipientAddressInput: HTMLInputElement;
+let lotCountValEl: HTMLElement;
+let lotDecBtn: HTMLElement;
+let lotIncBtn: HTMLElement;
 
-const feeAmountEl = document.getElementById('fee-amount')!;
-const feeMintEl = document.getElementById('fee-mint')!;
-const feeExecEl = document.getElementById('fee-exec')!;
-const feeTotalEl = document.getElementById('fee-total')!;
-const submitBtn = document.getElementById('mint-submit-btn') as HTMLButtonElement;
+let feeAmountEl: HTMLElement;
+let feeMintEl: HTMLElement;
+let feeExecEl: HTMLElement;
+let feeTotalEl: HTMLElement;
+let submitBtn: HTMLButtonElement;
 
-const statusTrackerEl = document.getElementById('status-tracker')!;
-const consoleLogEl = document.getElementById('console-log')!;
-const delayAlertEl = document.getElementById('delay-alert')!;
-const delayTimerEl = document.getElementById('delay-timer')!;
+let statusTrackerEl: HTMLElement;
+let consoleLogEl: HTMLElement;
+let delayAlertEl: HTMLElement;
+let delayTimerEl: HTMLElement;
 
-// Stepper Step elements
-const stepPayEl = document.getElementById('step-pay')!;
-const stepFdcEl = document.getElementById('step-fdc')!;
-const stepProofEl = document.getElementById('step-proof')!;
-const stepExecuteEl = document.getElementById('step-execute')!;
+let stepPayEl: HTMLElement;
+let stepFdcEl: HTMLElement;
+let stepProofEl: HTMLElement;
+let stepExecuteEl: HTMLElement;
 
-// Developer inputs
-const settingsToggleBtn = document.getElementById('settings-toggle-btn')!;
-const settingsContentEl = document.getElementById('settings-content')!;
-const settingsToggleLabel = document.getElementById('settings-toggle-label')!;
-const devXrplSeedInput = document.getElementById('dev-xrpl-seed') as HTMLInputElement;
-const devFlarePkeyInput = document.getElementById('dev-flare-pkey') as HTMLInputElement;
+let settingsToggleBtn: HTMLElement;
+let settingsContentEl: HTMLElement;
+let settingsToggleLabel: HTMLElement;
+let devXrplSeedInput: HTMLInputElement;
+let devFlarePkeyInput: HTMLInputElement;
 
 // Setup logger utility
 function log(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+  if (!consoleLogEl) return;
   const el = document.createElement('div');
   el.className = `log-entry ${type}`;
   el.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -65,9 +64,183 @@ function log(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info
 }
 
 /**
+ * Injects the widget layout into the target container.
+ */
+function mountWidget() {
+  const container = document.getElementById('fxrp-mint-widget');
+  if (!container) {
+    console.warn('FXRP Mint Widget: #fxrp-mint-widget container not found on this page.');
+    return false;
+  }
+
+  container.innerHTML = `
+    <main class="glass-card">
+      <header class="dashboard-header">
+        <div class="logo-container">
+          <h1 id="main-heading">FXRP Direct Mint</h1>
+        </div>
+        <div class="network-badge" id="net-badge">Coston2 Testnet</div>
+      </header>
+
+      <div class="dashboard-grid">
+        <section class="wallets-panel" aria-label="Wallet Configuration Status">
+          <div class="wallet-card" id="xrpl-wallet-card">
+            <div class="wallet-meta">
+              <span class="wallet-label">XRPL Minter Wallet</span>
+              <span class="wallet-balance" id="xrpl-balance">-- XRP</span>
+            </div>
+            <div class="wallet-address" id="xrpl-address" title="Click to copy">Connecting...</div>
+          </div>
+          
+          <div class="wallet-card" id="flare-wallet-card">
+            <div class="wallet-meta">
+              <span class="wallet-label">Flare Gas Account</span>
+              <span class="wallet-balance" id="flare-balance">-- C2FLR</span>
+            </div>
+            <div class="wallet-address" id="flare-address" title="Click to copy">Connecting...</div>
+          </div>
+        </section>
+
+        <section class="mint-form-panel" aria-label="Mint Request Form">
+          <form class="mint-form" id="mint-form" onsubmit="return false;">
+            <div class="form-group">
+              <label class="form-label" for="recipient-address">Recipient EVM Address</label>
+              <div class="input-container">
+                <input type="text" id="recipient-address" class="form-input" placeholder="0x..." required pattern="^0x[a-fA-F0-9]{40}$">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="lot-count">Amount (Lots)</label>
+              <div class="lot-incrementer">
+                <button type="button" class="lot-btn" id="lot-dec">-</button>
+                <div class="lot-value" id="lot-count-value">1</div>
+                <button type="button" class="lot-btn" id="lot-inc">+</button>
+              </div>
+            </div>
+
+            <div class="fees-card" aria-label="Fee details">
+              <div class="fee-row">
+                <span>Direct Mint Amount</span>
+                <span id="fee-amount">10.0 XRP</span>
+              </div>
+              <div class="fee-row">
+                <span>Protocol Minting Fee (0.1%)</span>
+                <span id="fee-mint">0.1 XRP</span>
+              </div>
+              <div class="fee-row">
+                <span>Executor Bounty Reward</span>
+                <span id="fee-exec">0.1 XRP</span>
+              </div>
+              <div class="fee-row total">
+                <span>Total Payment Required</span>
+                <span id="fee-total">10.2 XRP</span>
+              </div>
+            </div>
+
+            <button type="submit" class="action-btn" id="mint-submit-btn" disabled>
+              <span>Initialize Direct Mint</span>
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <section class="status-tracker hidden" id="status-tracker" aria-label="Attestation progress">
+        <h2 class="tracker-title">Attestation & Verification Progress</h2>
+        
+        <div class="stepper">
+          <div class="step-node active" id="step-pay">
+            <div class="step-dot">1</div>
+            <div class="step-label">Payment</div>
+          </div>
+          <div class="step-node" id="step-fdc">
+            <div class="step-dot">2</div>
+            <div class="step-label">FDC Request</div>
+          </div>
+          <div class="step-node" id="step-proof">
+            <div class="step-dot">3</div>
+            <div class="step-label">Proof Ready</div>
+          </div>
+          <div class="step-node" id="step-execute">
+            <div class="step-dot">4</div>
+            <div class="step-label">Minted</div>
+          </div>
+        </div>
+
+        <div class="console-log" id="console-log" aria-live="polite">
+          <div class="log-entry info">Console logger initialized... awaiting action.</div>
+        </div>
+
+        <div class="delay-alert hidden" id="delay-alert">
+          <div class="delay-icon">⚠️</div>
+          <div class="delay-text">
+            <div class="delay-title">Direct Minting Saturated</div>
+            <div class="delay-desc">The protocol rate limits are currently exceeded. Minting will automatically execute when allowed.</div>
+          </div>
+          <div class="delay-countdown" id="delay-timer">00:00</div>
+        </div>
+      </section>
+
+      <section class="settings-panel" aria-label="Developer Settings Panel">
+        <div class="settings-header" id="settings-toggle-btn">
+          <span class="settings-title">Developer Settings</span>
+          <span class="settings-toggle" id="settings-toggle-label">Expand</span>
+        </div>
+        
+        <div class="settings-content hidden" id="settings-content">
+          <div class="form-group">
+            <label class="form-label" for="dev-xrpl-seed">XRPL Seed Key (Testnet)</label>
+            <input type="password" id="dev-xrpl-seed" class="form-input" placeholder="s...">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="dev-flare-pkey">COSTON2 EVM Private Key</label>
+            <input type="password" id="dev-flare-pkey" class="form-input" placeholder="0x...">
+          </div>
+          <div style="font-size: 11px; color: var(--text-dimmed); line-height: 1.4;">
+            Note: Private keys are stored purely locally in your browser's localStorage and never leave the client. Leave blank to default to pre-configured testnet credentials.
+          </div>
+        </div>
+      </section>
+    </main>
+  `;
+
+  // Bind elements
+  xrplBalanceEl = document.getElementById('xrpl-balance')!;
+  xrplAddressEl = document.getElementById('xrpl-address')!;
+  flareBalanceEl = document.getElementById('flare-balance')!;
+  flareAddressEl = document.getElementById('flare-address')!;
+  recipientAddressInput = document.getElementById('recipient-address') as HTMLInputElement;
+  lotCountValEl = document.getElementById('lot-count-value')!;
+  lotDecBtn = document.getElementById('lot-dec')!;
+  lotIncBtn = document.getElementById('lot-inc')!;
+  feeAmountEl = document.getElementById('fee-amount')!;
+  feeMintEl = document.getElementById('fee-mint')!;
+  feeExecEl = document.getElementById('fee-exec')!;
+  feeTotalEl = document.getElementById('fee-total')!;
+  submitBtn = document.getElementById('mint-submit-btn') as HTMLButtonElement;
+  statusTrackerEl = document.getElementById('status-tracker')!;
+  consoleLogEl = document.getElementById('console-log')!;
+  delayAlertEl = document.getElementById('delay-alert')!;
+  delayTimerEl = document.getElementById('delay-timer')!;
+  stepPayEl = document.getElementById('step-pay')!;
+  stepFdcEl = document.getElementById('step-fdc')!;
+  stepProofEl = document.getElementById('step-proof')!;
+  stepExecuteEl = document.getElementById('step-execute')!;
+  settingsToggleBtn = document.getElementById('settings-toggle-btn')!;
+  settingsContentEl = document.getElementById('settings-content')!;
+  settingsToggleLabel = document.getElementById('settings-toggle-label')!;
+  devXrplSeedInput = document.getElementById('dev-xrpl-seed') as HTMLInputElement;
+  devFlarePkeyInput = document.getElementById('dev-flare-pkey') as HTMLInputElement;
+
+  return true;
+}
+
+/**
  * Initializes wallets and balance queries.
  */
 async function initializeWidget() {
+  if (!mountWidget()) return;
+
   log('Initializing widget connection components...');
   
   // Load values from localStorage or default environment variables
@@ -124,9 +297,58 @@ async function initializeWidget() {
     updateFeeBreakdown();
     submitBtn.disabled = false;
 
+    // Setup Event Listeners
+    setupEventListeners(xrplWallet.address, evmAccount.address);
+
   } catch (error: any) {
     log(`Initialization failed: ${error.message || error}`, 'error');
   }
+}
+
+/**
+ * Configures listeners for input changes and button clicks.
+ */
+function setupEventListeners(xrplAddress: string, evmAddress: string) {
+  lotDecBtn.addEventListener('click', () => {
+    if (currentLots > 1) {
+      currentLots--;
+      lotCountValEl.innerText = currentLots.toString();
+      updateFeeBreakdown();
+    }
+  });
+
+  lotIncBtn.addEventListener('click', () => {
+    currentLots++;
+    lotCountValEl.innerText = currentLots.toString();
+    updateFeeBreakdown();
+  });
+
+  submitBtn.addEventListener('click', () => {
+    executeDirectMint(xrplAddress, evmAddress);
+  });
+
+  settingsToggleBtn.addEventListener('click', () => {
+    const isHidden = settingsContentEl.classList.contains('hidden');
+    if (isHidden) {
+      settingsContentEl.classList.remove('hidden');
+      settingsToggleLabel.innerText = 'Collapse';
+    } else {
+      settingsContentEl.classList.add('hidden');
+      settingsToggleLabel.innerText = 'Expand';
+    }
+  });
+
+  devXrplSeedInput.addEventListener('change', () => {
+    localStorage.setItem('xrpl_seed', devXrplSeedInput.value.trim());
+    log('XRPL Seed key updated. Re-initializing...', 'info');
+    initializeWidget();
+  });
+
+  devFlarePkeyInput.addEventListener('change', () => {
+    localStorage.setItem('flare_pkey', devFlarePkeyInput.value.trim());
+    log('Flare Private key updated. Re-initializing...', 'info');
+    initializeWidget();
+  });
 }
 
 /**
@@ -177,7 +399,7 @@ function updateFeeBreakdown() {
 /**
  * Executes the Direct Minting flow programmatically using the SDK.
  */
-async function executeDirectMint() {
+async function executeDirectMint(xrplAddress: string, evmAddress: string) {
   submitBtn.disabled = true;
   statusTrackerEl.classList.remove('hidden');
   
@@ -223,15 +445,14 @@ async function executeDirectMint() {
         log(status.message, 'info');
       } else if (status.state === 'Delayed') {
         log(status.message, 'warning');
-        handleDelayedState(paymentResult.txHash, status.allowedAt!);
+        handleDelayedState(recipient, status.allowedAt!);
       } else if (status.state === 'Complete') {
         log(status.message, 'success');
         stepExecuteEl.className = 'step-node completed';
         log(`Direct Minting successful! EVM Tx Hash: ${status.txHash}`, 'success');
         
         // Refresh balances
-        const xrplWallet = XrplWallet.fromSeed(localStorage.getItem('xrpl_seed') || PROCESS_ENV.XRPL_SEED);
-        refreshBalances(xrplWallet.address, recipient);
+        refreshBalances(xrplAddress, recipient);
         submitBtn.disabled = false;
       } else if (status.state === 'Failed') {
         log(status.message, 'error');
@@ -251,7 +472,7 @@ async function executeDirectMint() {
 /**
  * Handles the rate-limited delay state. Shows the warning panel and counts down.
  */
-function handleDelayedState(txHash: string, allowedAt: Date) {
+function handleDelayedState(recipientAddress: string, allowedAt: Date) {
   delayAlertEl.classList.remove('hidden');
   
   const interval = setInterval(async () => {
@@ -262,14 +483,6 @@ function handleDelayedState(txHash: string, allowedAt: Date) {
       delayTimerEl.innerText = '00:00';
       delayAlertEl.classList.add('hidden');
       log('Delay epoch passed. Re-submitting direct mint execution...', 'info');
-      
-      // Auto-execution trigger
-      try {
-        log('Fetching generated FDC attestation proof...');
-        // In real-world, the monitorStatus will resume automatically, but we display this log.
-      } catch (e: any) {
-        log(`Resubmission error: ${e.message || e}`, 'error');
-      }
       return;
     }
 
@@ -282,47 +495,9 @@ function handleDelayedState(txHash: string, allowedAt: Date) {
   }, 1000);
 }
 
-// Event Listeners
-lotDecBtn.addEventListener('click', () => {
-  if (currentLots > 1) {
-    currentLots--;
-    lotCountValEl.innerText = currentLots.toString();
-    updateFeeBreakdown();
-  }
-});
-
-lotIncBtn.addEventListener('click', () => {
-  currentLots++;
-  lotCountValEl.innerText = currentLots.toString();
-  updateFeeBreakdown();
-});
-
-submitBtn.addEventListener('click', () => {
-  executeDirectMint();
-});
-
-settingsToggleBtn.addEventListener('click', () => {
-  const isHidden = settingsContentEl.classList.contains('hidden');
-  if (isHidden) {
-    settingsContentEl.classList.remove('hidden');
-    settingsToggleLabel.innerText = 'Collapse';
-  } else {
-    settingsContentEl.classList.add('hidden');
-    settingsToggleLabel.innerText = 'Expand';
-  }
-});
-
-devXrplSeedInput.addEventListener('change', () => {
-  localStorage.setItem('xrpl_seed', devXrplSeedInput.value.trim());
-  log('XRPL Seed key updated. Re-initializing...', 'info');
+// Run Initializer on DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeWidget);
+} else {
   initializeWidget();
-});
-
-devFlarePkeyInput.addEventListener('change', () => {
-  localStorage.setItem('flare_pkey', devFlarePkeyInput.value.trim());
-  log('Flare Private key updated. Re-initializing...', 'info');
-  initializeWidget();
-});
-
-// Run Initializer
-initializeWidget();
+}
