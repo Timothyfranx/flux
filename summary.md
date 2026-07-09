@@ -6,7 +6,7 @@ This document details the step-by-step progress made on the **FXRP Embed** proje
 
 ## 1. Project Progress & Milestones
 
-We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Phase**, and the **Embedded Widget UI Phase (Week 3)**.
+We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Phase**, the **Embedded Widget UI Phase (Week 3)**, and the **Widget Embed Mechanics (Week 3/4)**.
 
 ### Phase 1: Environment Setup & Registry Querying
 * **What we did:** Initialized the Node project and installed `viem`, `xrpl`, `dotenv`, and official Flare periphery contract artifacts.
@@ -37,9 +37,11 @@ We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Ph
 
 ### Phase 6: Embedded Widget Dashboard UI (Week 3 Milestone)
 * **What we did:** Built a high-fidelity, single-page embedded widget UI using modern Glassmorphism aesthetics (vibrant cyan/purple blur blobs, responsive input controls, live fees breakdown, real-time logging console, and progress stepper).
-* **Browser Compatibility:** Refactored the core SDK to use static hex representations instead of `Buffer.from` to ensure zero dependencies on Node APIs.
-* **Asset Bundling:** Setup an `esbuild` pipeline (`scripts/build_widget.js`) to compile and bundle the TypeScript controller (`src/widget.ts`) and SDK into a single minified browser payload (`dist/widget.js`).
-* **Deployment:** Created script hooks for building and running a local development server on port 8080.
+
+### Phase 7: Plug-and-Play Widget Embed Mechanics (Week 3/4 Milestone)
+* **What we did:** Refactored the widget frontend controller to be fully self-contained and modular. Upon loading, `dist/widget.js` automatically mounts the HTML UI inside any DOM element with the ID `#fxrp-mint-widget`.
+* **Integrator Demo App:** Created a mock third-party DeFi lending dApp (`Kinetic Finance`) under [integrator-demo/index.html](file:///home/replytim/Desktop/flux/integrator-demo/index.html) to demonstrate how easily an external app can embed the trustless direct minting widget.
+* **Deployment:** Integrated build and dev server commands to serve both pages recursively under port 8080.
 
 ---
 
@@ -47,8 +49,9 @@ We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Ph
 
 All components have been verified locally:
 1. **Developer server:** Running on port `8080`.
-2. **Build bundle:** Compiles cleanly to `dist/widget.js` (including sourcemaps).
-3. **UI Countdown:** Simulated and verified rate-limit countdown timer animation.
+2. **Main widget page:** `http://localhost:8080/index.html`
+3. **Integrator demo page:** `http://localhost:8080/integrator-demo/index.html`
+4. **Build bundle:** Compiles cleanly to `dist/widget.js` (including sourcemaps).
 
 ---
 
@@ -57,7 +60,12 @@ All components have been verified locally:
 Below is the repository git tree showing feature branches, commits, and non-fast-forward merge integrations.
 
 ```
-* 1eaea43 (HEAD -> main) refactor: replace buffer usage with static hex strings in SDK for browser compatibility
+*   2a74ce4 (HEAD -> main) merge: integrate plug-and-play widget embed mechanics
+|\  
+| * de838e5 (feature/embed) feat: implement self-mounting widget loader and mock Kinetic Finance integrator demo
+|/  
+* 69c9c7e docs: update progress summaries with Week 3 UI details
+* 1eaea43 refactor: replace buffer usage with static hex strings in SDK for browser compatibility
 *   b07b7be merge: integrate embedded widget dashboard UI
 |\  
 | * d677dc4 (feature/ui) feat: implement high-fidelity glassmorphism direct mint dashboard and browser widget
