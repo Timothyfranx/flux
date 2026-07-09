@@ -6,7 +6,7 @@ This document details the step-by-step progress made on the **FXRP Embed** proje
 
 ## 1. Project Progress & Milestones
 
-We have completed the **Gate 1 Validation Phase** (empirical direct-minting proof-of-concept) and transitioned to the **Core SDK Development Phase (Week 2)**.
+We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Phase**, and the **Embedded Widget UI Phase (Week 3)**.
 
 ### Phase 1: Environment Setup & Registry Querying
 * **What we did:** Initialized the Node project and installed `viem`, `xrpl`, `dotenv`, and official Flare periphery contract artifacts.
@@ -33,20 +33,22 @@ We have completed the **Gate 1 Validation Phase** (empirical direct-minting proo
 
 ### Phase 5: TypeScript Core SDK (Week 2 Milestone)
 * **What we did:** Created a robust, fully automated FAsset Direct Minting SDK in typed TypeScript under the `src/` folder.
-* **Architecture:**
-  * Main class `FXRPDirectMintSDK` orchestrating the lifecycle.
-  * Local wallet-signing, verifier interaction, and proof parsing.
-  * Automated polling and delay countdown tracking via custom event filters in `waitForDirectMintingOutcome`.
 * **Testing:** Compiled via `npx tsc` and successfully executed the test suite (`src/test_sdk_execute.ts`) proving direct on-chain submission, error identification (`0x40d8d67b`), and limiter state query.
+
+### Phase 6: Embedded Widget Dashboard UI (Week 3 Milestone)
+* **What we did:** Built a high-fidelity, single-page embedded widget UI using modern Glassmorphism aesthetics (vibrant cyan/purple blur blobs, responsive input controls, live fees breakdown, real-time logging console, and progress stepper).
+* **Browser Compatibility:** Refactored the core SDK to use static hex representations instead of `Buffer.from` to ensure zero dependencies on Node APIs.
+* **Asset Bundling:** Setup an `esbuild` pipeline (`scripts/build_widget.js`) to compile and bundle the TypeScript controller (`src/widget.ts`) and SDK into a single minified browser payload (`dist/widget.js`).
+* **Deployment:** Created script hooks for building and running a local development server on port 8080.
 
 ---
 
-## 2. Codebase Testing
+## 2. Codebase Testing & Execution
 
-All scripts and SDK components have been tested against the live testnets (XRPL Altnet and Flare Coston2):
-1. `src/test_sdk_execute.ts`: Verified correct ABI encoding, transaction transmission, error capture, and limiter state polling.
-2. `src/test_sdk_monitoring.ts`: Validated verifier and RPC connection settings.
-3. Original CommonJS debug scripts (under `scripts/` folder) verified and tracked.
+All components have been verified locally:
+1. **Developer server:** Running on port `8080`.
+2. **Build bundle:** Compiles cleanly to `dist/widget.js` (including sourcemaps).
+3. **UI Countdown:** Simulated and verified rate-limit countdown timer animation.
 
 ---
 
@@ -55,7 +57,13 @@ All scripts and SDK components have been tested against the live testnets (XRPL 
 Below is the repository git tree showing feature branches, commits, and non-fast-forward merge integrations.
 
 ```
-*   916dca7 (HEAD -> main) merge: integrate Core SDK and automated testing suite
+* 1eaea43 (HEAD -> main) refactor: replace buffer usage with static hex strings in SDK for browser compatibility
+*   b07b7be merge: integrate embedded widget dashboard UI
+|\  
+| * d677dc4 (feature/ui) feat: implement high-fidelity glassmorphism direct mint dashboard and browser widget
+|/  
+* 7b343b6 docs: update progress summaries with SDK milestone and graph
+*   916dca7 merge: integrate Core SDK and automated testing suite
 |\  
 | * ad63190 (feature/sdk) feat: implement main FXRPDirectMintSDK and FDC polling utilities in TypeScript
 |/  
