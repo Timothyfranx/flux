@@ -53,27 +53,35 @@ body {
   filter: blur(150px);
   z-index: 0;
   pointer-events: none;
-  opacity: 0.15;
+  opacity: 0.12;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
 .blob-cyan {
   background: var(--color-primary);
   top: -10%;
   left: -10%;
-  animation: float 20s ease-in-out infinite;
+  animation: float-cyan 25s ease-in-out infinite;
 }
 
 .blob-purple {
   background: var(--color-secondary);
   bottom: -10%;
   right: -10%;
-  animation: float 25s ease-in-out infinite alternate;
+  animation: float-purple 30s ease-in-out infinite alternate;
 }
 
-@keyframes float {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(40px, -60px) scale(1.1); }
-  100% { transform: translate(0, 0) scale(1); }
+@keyframes float-cyan {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(30px, -40px, 0) scale(1.05); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes float-purple {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-30px, 40px, 0) scale(1.05); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
 }
 
 /* Layout Main Container */
@@ -92,6 +100,8 @@ body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   padding: 32px;
+  will-change: backdrop-filter;
+  transform: translate3d(0, 0, 0);
 }
 
 /* Header */
@@ -438,11 +448,12 @@ body {
   align-items: center;
   gap: 16px;
   animation: pulse 2s infinite alternate;
+  will-change: border-color;
 }
 
 @keyframes pulse {
-  0% { box-shadow: 0 0 10px rgba(240, 150, 0, 0.05); }
-  100% { box-shadow: 0 0 20px rgba(240, 150, 0, 0.2); }
+  0% { border-color: rgba(240, 150, 0, 0.2); }
+  100% { border-color: rgba(240, 150, 0, 0.6); }
 }
 
 .delay-icon {
