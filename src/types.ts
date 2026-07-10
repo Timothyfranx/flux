@@ -4,6 +4,7 @@ export interface FXRPDirectMintConfig {
   flarePrivateKey?: string;
   flareRpcUrl: string;
   registryAddress: string;
+  walletClient?: any; // pre-configured viem walletClient
 }
 
 export interface MintSettings {
@@ -13,8 +14,8 @@ export interface MintSettings {
   minterFeeShareBIPS: number;
   executorFeeUBA: bigint;
   executorFeeXRP: number;
-  mintingFeeUBA: bigint;
-  mintingFeeXRP: number;
+  minimumFeeUBA: bigint;
+  minimumFeeXRP: number;
   mintingPaused: boolean;
   emergencyPaused: boolean;
 }
@@ -24,7 +25,7 @@ export interface PaymentParams {
   recipientEvmAddress: string;
   lots: number;
   amountXRP: number;
-  mintingFeeXRP: number;
+  minimumFeeXRP: number;
   executorFeeXRP: number;
   totalXRP: number;
   memoHex: string;

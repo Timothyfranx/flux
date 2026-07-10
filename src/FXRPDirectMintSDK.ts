@@ -47,7 +47,9 @@ export class FXRPDirectMintSDK {
       transport: http(config.flareRpcUrl),
     });
 
-    if (config.flarePrivateKey) {
+    if (config.walletClient) {
+      this.walletClient = config.walletClient;
+    } else if (config.flarePrivateKey) {
       const account = privateKeyToAccount(config.flarePrivateKey);
       this.evmAccount = account;
       this.evmAccountAddress = account.address;
@@ -56,6 +58,16 @@ export class FXRPDirectMintSDK {
         chain: flareTestnet,
         transport: http(config.flareRpcUrl),
       });
+    }
+  }
+
+  /**
+   * Sets or updates the walletClient dynamically (e.g. when connecting in a browser).
+   */
+  public setWalletClient(walletClient: any, evmAccountAddress?: string) {
+    this.walletClient = walletClient;
+    if (evmAccountAddress) {
+      this.evmAccountAddress = evmAccountAddress as Address;
     }
   }
 
@@ -98,7 +110,7 @@ export class FXRPDirectMintSDK {
   }
 
   /**
-   * Queries and returns the current FXRP direct minting settings from the contract.
+   * Retrieves current direct minting settings from the AssetManager contract.
    */
   public async getSettings(): Promise<MintSettings> {
     await this.resolveContractAddresses();
@@ -147,8 +159,8 @@ export class FXRPDirectMintSDK {
       minterFeeShareBIPS: Number(feeBips),
       executorFeeUBA,
       executorFeeXRP: Number(executorFeeUBA) / 1e6,
-      mintingFeeUBA: minimumFeeUBA, // temporary mapping
-      mintingFeeXRP: Number(minimumFeeUBA) / 1e6,
+      minimumFeeUBA,
+      minimumFeeXRP: Number(minimumFeeUBA) / 1e6,
       mintingPaused,
       emergencyPaused,
     };
@@ -174,14 +186,14 @@ export class FXRPDirectMintSDK {
 
     const amountXRP = params.lots * settings.lotSizeXRP;
     const feeBips = settings.minterFeeShareBIPS;
-    const minimumFeeXRP = settings.mintingFeeXRP;
+    const minimumFeeXRP = settings.minimumFeeXRP;
 
     // Calculate percentage fee based on bips
     const percentageFeeXRP = (amountXRP * feeBips) / 10000;
-    const mintingFeeXRP = Math.max(percentageFeeXRP, minimumFeeXRP);
+    const calculatedFeeXRP = Math.max(percentageFeeXRP, minimumFeeXRP);
 
     const executorFeeXRP = settings.executorFeeXRP;
-    const totalXRP = amountXRP + mintingFeeXRP + executorFeeXRP;
+    const totalXRP = amountXRP + calculatedFeeXRP + executorFeeXRP;
 
     const memoHex = encodeDirectMintingMemo(params.recipientEvmAddress);
 
@@ -190,7 +202,7 @@ export class FXRPDirectMintSDK {
       recipientEvmAddress: params.recipientEvmAddress,
       lots: params.lots,
       amountXRP,
-      mintingFeeXRP,
+      minimumFeeXRP: calculatedFeeXRP,
       executorFeeXRP,
       totalXRP,
       memoHex,
@@ -198,12 +210,12 @@ export class FXRPDirectMintSDK {
   }
 
   /**
-   * Connects to XRPL and executes the payment transaction.
+   * Connects to XRPL and executes the payment transaction (for backend/test script usage).
    * Blocks until transaction has at least 3 validations.
    */
   public async executePayment(params: PaymentParams): Promise<PaymentResult> {
     if (!this.config.xrplSeed) {
-      throw new Error('XRPL Seed not configured in SDK.');
+      throw new Error('XRPL Seed not configured in SDK. Direct payment submission requires local seed.');
     }
 
     const wallet = XrplWallet.fromSeed(this.config.xrplSeed);
@@ -233,10 +245,9 @@ export class FXRPDirectMintSDK {
       const signed = wallet.sign(prepared);
       const result = await client.submitAndWait(signed.tx_blob);
 
-      // Verify the transaction was successful on XRPL
-      const meta = result.result.meta as any;
-      if (typeof meta !== 'object' || meta?.TransactionResult !== 'tesSUCCESS') {
-        throw new Error(`XRPL payment failed: ${meta?.TransactionResult}`);
+      const meta = result.result.meta;
+      if (typeof meta === 'object' && meta && meta.TransactionResult !== 'tesSUCCESS') {
+        throw new Error(`XRPL Transaction failed with result: ${meta.TransactionResult}`);
       }
 
       // Convert XRPL block close time to unix timestamp
@@ -251,7 +262,7 @@ export class FXRPDirectMintSDK {
       // Parse metadata for actual spent amounts
       let spentDrops = drops;
       let receivedDrops = drops;
-      if (typeof meta === 'object' && meta.delivered_amount) {
+      if (typeof meta === 'object' && meta && meta.delivered_amount) {
         receivedDrops = typeof meta.delivered_amount === 'string' ? meta.delivered_amount : drops;
       }
 
@@ -275,8 +286,9 @@ export class FXRPDirectMintSDK {
     paymentResult: PaymentResult
   ): Promise<{ votingRoundId: number; requestBytes: string }> {
     await this.resolveContractAddresses();
-    if (!this.walletClient || !this.evmAccountAddress) {
-      throw new Error('EVM Private Key not configured in SDK.');
+    const accountParam = this.evmAccount || this.evmAccountAddress;
+    if (!this.walletClient || !accountParam) {
+      throw new Error('Wallet client or EVM account address not configured.');
     }
 
     const txHash = paymentResult.txHash.startsWith('0x') ? paymentResult.txHash : `0x${paymentResult.txHash}`;
@@ -310,7 +322,7 @@ export class FXRPDirectMintSDK {
       functionName: 'requestAttestation',
       args: [requestBytes],
       value: requestFee,
-      account: this.evmAccount,
+      account: accountParam,
       chain: flareTestnet,
     });
 
@@ -335,8 +347,9 @@ export class FXRPDirectMintSDK {
    */
   public async executeMint(proof: FdcProof): Promise<Hash> {
     await this.resolveContractAddresses();
-    if (!this.walletClient || !this.evmAccount) {
-      throw new Error('EVM Private Key not configured in SDK.');
+    const accountParam = this.evmAccount || this.evmAccountAddress;
+    if (!this.walletClient || !accountParam) {
+      throw new Error('Wallet client or EVM account address not configured.');
     }
 
     // Call executeDirectMinting with the proof arguments
@@ -345,7 +358,7 @@ export class FXRPDirectMintSDK {
       abi: coston2.iAssetManagerAbi,
       functionName: 'executeDirectMinting',
       args: [proof],
-      account: this.evmAccount,
+      account: accountParam,
       chain: flareTestnet,
     });
 
@@ -353,30 +366,35 @@ export class FXRPDirectMintSDK {
   }
 
   /**
-   * Orchestrates the direct mint status tracking lifecycle.
-   * Tracks the mint from XRPL validation to final minting event on Flare.
+   * Monitors the status of a payment transaction from validation to finalization on Coston2.
    */
   public async monitorStatus(
     paymentResult: PaymentResult,
     callback: StatusCallback,
-    pollingIntervalMs = 10000
+    pollingIntervalMs = 15000
   ): Promise<void> {
-    await this.resolveContractAddresses();
-
     try {
       callback({
-        state: 'PaymentValidated',
-        message: `XRPL Payment validated at block close time ${new Date(paymentResult.blockTimestamp * 1000).toISOString()}. Preparing FDC Request...`,
+        state: 'PaymentBroadcasted',
+        message: `XRPL Payment detected. Monitoring ledger validation...`,
       });
 
-      // 1. Submit attestation request to FdcHub
+      // 1. Wait for FDC eligibility / attestation submission
+      callback({
+        state: 'PaymentValidated',
+        message: `XRPL Payment validated at block close time ${new Date(
+          paymentResult.blockTimestamp * 1000
+        ).toISOString()}. Preparing FDC Request...`,
+      });
+
       const { votingRoundId, requestBytes } = await this.requestFdcAttestation(paymentResult);
+
       callback({
         state: 'FdcRequested',
         message: `FDC attestation request submitted for voting round ${votingRoundId}. Finalizing round (takes ~90-180s)...`,
       });
 
-      // 2. Poll Data Availability layer for proof
+      // 2. Poll DA Layer until proof is generated
       let proof: FdcProof | null = null;
       while (!proof) {
         proof = await fetchFdcProof(votingRoundId, requestBytes);
@@ -396,13 +414,23 @@ export class FXRPDirectMintSDK {
         execHash = await this.executeMint(proof);
       } catch (error: any) {
         // Decode custom revert error 0x40d8d67b (Limiter Delay)
-        const errorData = error.data || (error.cause && error.cause.data) || error.signature || (error.cause && error.cause.signature) || error.raw || (error.cause && error.cause.raw);
-        const isDelayed = typeof errorData === 'string' && (errorData.startsWith('0x40d8d67b') || errorData.includes('0x40d8d67b'));
+        const errorData =
+          error.data ||
+          (error.cause && error.cause.data) ||
+          error.signature ||
+          (error.cause && error.cause.signature) ||
+          error.raw ||
+          (error.cause && error.cause.raw);
+        const isDelayed =
+          typeof errorData === 'string' &&
+          (errorData.startsWith('0x40d8d67b') || errorData.includes('0x40d8d67b'));
         if (isDelayed) {
           const delayState = await getDirectMintingDelayState(
             this.publicClient,
             this.assetManagerAddress!,
-            paymentResult.txHash.startsWith('0x') ? (paymentResult.txHash as Hash) : `0x${paymentResult.txHash}`
+            paymentResult.txHash.startsWith('0x')
+              ? (paymentResult.txHash as Hash)
+              : `0x${paymentResult.txHash}`
           );
 
           callback({
@@ -421,38 +449,22 @@ export class FXRPDirectMintSDK {
         message: `Finalization transaction submitted: ${execHash}. Waiting for final confirmation...`,
       });
 
-      // 4. Wait for final event outcomes (DirectMintingExecuted or DirectMintingDelayed)
-      const txHashBytes32 = (paymentResult.txHash.startsWith('0x')
-        ? paymentResult.txHash
-        : `0x${paymentResult.txHash}`) as Hash;
-
-      const outcome = await waitForDirectMintingOutcome(
-        this.publicClient,
-        this.assetManagerAddress!,
-        txHashBytes32,
-        (allowedAt) => {
-          callback({
-            state: 'Delayed',
-            message: `Minting rate-limits hit. The transaction is delayed by the protocol for safety.`,
-            allowedAt: new Date(Number(allowedAt) * 1000),
-          });
-        },
-        pollingIntervalMs
-      );
-
-      if (outcome.status === 'EXECUTED') {
-        callback({
-          state: 'Complete',
-          message: `Direct minting complete! Successfully minted ${Number(outcome.mintedAmountUBA!) / 1e6} FXRP.`,
-          txHash: outcome.transactionHash,
-        });
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: execHash });
+      if (receipt.status !== 'success') {
+        throw new Error(`Flare execution transaction execution failed on-chain.`);
       }
+
+      callback({
+        state: 'Complete',
+        message: `Direct minting finalized successfully!`,
+        txHash: execHash,
+      });
 
     } catch (error: any) {
       callback({
         state: 'Failed',
         message: `Direct minting process encountered an error: ${error.message || error}`,
-        error: error.stack || error.toString(),
+        error: error.stack || String(error),
       });
     }
   }

@@ -6,7 +6,7 @@ This document details the step-by-step progress made on the **FXRP Embed** proje
 
 ## 1. Project Progress & Milestones
 
-We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Phase**, the **Embedded Widget UI Phase (Week 3)**, the **Widget Embed Mechanics (Week 3/4)**, and the **Performance Optimization & Hackathon Documentation Phase (Week 5)**.
+We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Phase**, the **Embedded Widget UI Phase (Week 3)**, the **Widget Embed Mechanics (Week 3/4)**, the **Performance Optimization & Hackathon Documentation Phase (Week 5)**, and the **Non-Custodial Security & Design Spec Refactor**.
 
 ### Phase 1: Environment Setup & Registry Querying
 * **What we did:** Initialized the Node project and installed `viem`, `xrpl`, `dotenv`, and official Flare periphery contract artifacts.
@@ -48,15 +48,23 @@ We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Ph
   2. Replaced the costly box-shadow pulse animation in `.delay-alert` with a lighter `border-color` keyframe animation, eliminating paint reflow cycles.
 * **Hackathon Deliverables:** Authored a comprehensive [README.md](file:///home/replytim/Desktop/flux/README.md) for quick-start integrations, and [roadmap.md](file:///home/replytim/Desktop/flux/roadmap.md) outlining future wallet connections and tag-based paths.
 
+### Phase 9: Non-Custodial & Design Spec Refactor
+* **What we did:** Fully refactored the SDK and Widget to adhere to the non-custodial custody boundaries and the Stripe-like minimalist visual specs in `design.md`:
+  1. **Removed Credentials From Widget Config:** The browser widget no longer requests or accepts raw seeds or private keys.
+  2. **Connected Browser Wallets:** Integrators can pass their own `walletClient` or connect users' browser wallets (Bifrost, MetaMask, Rabby) dynamically using `window.ethereum` custom transport.
+  3. **Simulated Sandbox Signer:** For XRPL payments, the widget outputs the exact amount, destination vault, and memo payload, allowing the user to copy them, with an explicit "Simulate Payment Signing (Xaman)" button for developer sandbox testing.
+  4. **Minimalist Style Overhaul:** Removed all gradients, glows, card shadows, and floating background blobs. Redesigned `style.css` with a neutral gray scheme, bordered containers, standard system fonts, and a custom accent color variable (`--color-accent`).
+  5. **Corrected Settings Mapping:** Fixed a naming bug where `minimumFeeUBA` and `minimumFeeXRP` were mislabeled as `mintingFeeUBA`/`XRP`, preventing misleading fee displays in the UI.
+
 ---
 
 ## 2. Codebase Testing & Execution
 
 All components have been verified locally:
 1. **Developer server:** Running on port `8080`.
-2. **Main widget page:** `http://localhost:8080/index.html` (Smooth 60 FPS scrolling and transition rendering verified).
+2. **Main widget page:** `http://localhost:8080/index.html` (Minimalist Stripe-like UI verified).
 3. **Integrator demo page:** `http://localhost:8080/integrator-demo/index.html`
-4. **Build bundle:** Compiles cleanly to `dist/widget.js` (including sourcemaps).
+4. **Build bundle:** Compiles cleanly to `dist/widget.js`.
 
 ---
 
@@ -65,7 +73,9 @@ All components have been verified locally:
 Below is the repository git tree showing feature branches, commits, and non-fast-forward merge integrations.
 
 ```
-* 9e63bc4 (HEAD -> main) perf: optimize animations and backdrop-filter rendering for 60fps scrolling
+* e4950ab (HEAD -> main) refactor: overhaul widget styling to match design.md and implement non-custodial wallet connections
+* 250d9ac docs: update progress summaries with final Week 5 performance details
+* 9e63bc4 perf: optimize animations and backdrop-filter rendering for 60fps scrolling
 * 18f2740 docs: add integrator README and product roadmap for hackathon submission
 * 6c91ec5 docs: update progress summaries with Week 3/4 embed details
 *   2a74ce4 merge: integrate plug-and-play widget embed mechanics
