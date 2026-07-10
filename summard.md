@@ -6,7 +6,7 @@ This document details the step-by-step progress made on the **FXRP Embed** proje
 
 ## 1. Project Progress & Milestones
 
-We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Phase**, the **Embedded Widget UI Phase (Week 3)**, and the **Widget Embed Mechanics (Week 3/4)**.
+We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Phase**, the **Embedded Widget UI Phase (Week 3)**, the **Widget Embed Mechanics (Week 3/4)**, and the **Performance Optimization & Hackathon Documentation Phase (Week 5)**.
 
 ### Phase 1: Environment Setup & Registry Querying
 * **What we did:** Initialized the Node project and installed `viem`, `xrpl`, `dotenv`, and official Flare periphery contract artifacts.
@@ -41,7 +41,12 @@ We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Ph
 ### Phase 7: Plug-and-Play Widget Embed Mechanics (Week 3/4 Milestone)
 * **What we did:** Refactored the widget frontend controller to be fully self-contained and modular. Upon loading, `dist/widget.js` automatically mounts the HTML UI inside any DOM element with the ID `#fxrp-mint-widget`.
 * **Integrator Demo App:** Created a mock third-party DeFi lending dApp (`Kinetic Finance`) under [integrator-demo/index.html](file:///home/replytim/Desktop/flux/integrator-demo/index.html) to demonstrate how easily an external app can embed the trustless direct minting widget.
-* **Deployment:** Integrated build and dev server commands to serve both pages recursively under port 8080.
+
+### Phase 8: Performance Optimization & Hackathon Submission Documentation (Week 5 Milestone)
+* **What we did:** Performed critical front-end optimization to fix rendering lag:
+  1. Promoted the animated background blobs and glassmorphism card to their own GPU composition layers using CSS `will-change: transform` and `transform: translate3d(0, 0, 0)`.
+  2. Replaced the costly box-shadow pulse animation in `.delay-alert` with a lighter `border-color` keyframe animation, eliminating paint reflow cycles.
+* **Hackathon Deliverables:** Authored a comprehensive [README.md](file:///home/replytim/Desktop/flux/README.md) for quick-start integrations, and [roadmap.md](file:///home/replytim/Desktop/flux/roadmap.md) outlining future wallet connections and tag-based paths.
 
 ---
 
@@ -49,7 +54,7 @@ We have completed the **Gate 1 Validation Phase**, the **Core SDK Development Ph
 
 All components have been verified locally:
 1. **Developer server:** Running on port `8080`.
-2. **Main widget page:** `http://localhost:8080/index.html`
+2. **Main widget page:** `http://localhost:8080/index.html` (Smooth 60 FPS scrolling and transition rendering verified).
 3. **Integrator demo page:** `http://localhost:8080/integrator-demo/index.html`
 4. **Build bundle:** Compiles cleanly to `dist/widget.js` (including sourcemaps).
 
@@ -60,7 +65,10 @@ All components have been verified locally:
 Below is the repository git tree showing feature branches, commits, and non-fast-forward merge integrations.
 
 ```
-*   2a74ce4 (HEAD -> main) merge: integrate plug-and-play widget embed mechanics
+* 9e63bc4 (HEAD -> main) perf: optimize animations and backdrop-filter rendering for 60fps scrolling
+* 18f2740 docs: add integrator README and product roadmap for hackathon submission
+* 6c91ec5 docs: update progress summaries with Week 3/4 embed details
+*   2a74ce4 merge: integrate plug-and-play widget embed mechanics
 |\  
 | * de838e5 (feature/embed) feat: implement self-mounting widget loader and mock Kinetic Finance integrator demo
 |/  
