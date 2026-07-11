@@ -247,6 +247,25 @@ function mountWidget() {
 }
 
 /**
+ * Helper to populate and stylize technical details with clickable block explorer links.
+ */
+function updateTechnicalDetails(evmAddr: string, txHash: string) {
+  const evmAddrEl = document.getElementById('tech-evm-addr');
+  if (evmAddrEl) {
+    evmAddrEl.innerHTML = `<a href="https://coston2-explorer.flare.network/address/${evmAddr}" target="_blank" style="color: var(--color-accent); text-decoration: underline;">${evmAddr.slice(0, 8)}...${evmAddr.slice(-8)}</a>`;
+  }
+  const xrplHashEl = document.getElementById('tech-xrpl-hash');
+  if (xrplHashEl) {
+    xrplHashEl.innerHTML = `<a href="https://testnet.xrpl.org/transactions/${txHash}" target="_blank" style="color: var(--color-accent); text-decoration: underline;">${txHash.slice(0, 8)}...${txHash.slice(-8)}</a>`;
+  }
+  const assetMgrEl = document.getElementById('tech-asset-mgr');
+  if (assetMgrEl) {
+    const addr = sdk['assetManagerAddress'] || REGISTRY_ADDRESS;
+    assetMgrEl.innerHTML = `<a href="https://coston2-explorer.flare.network/address/${addr}" target="_blank" style="color: var(--color-accent); text-decoration: underline;">${addr.slice(0, 8)}...${addr.slice(-8)}</a>`;
+  }
+}
+
+/**
  * Connects browser wallet (MetaMask/Bifrost) dynamically using window.ethereum.
  */
 async function connectBrowserWallet(): Promise<boolean> {
@@ -533,9 +552,7 @@ async function startRealPaymentDetection() {
             document.getElementById('phase-payment')!.classList.add('hidden');
             document.getElementById('phase-tracker')!.classList.remove('hidden');
 
-            document.getElementById('tech-evm-addr')!.innerText = evmAddress;
-            document.getElementById('tech-xrpl-hash')!.innerText = paymentResult.txHash;
-            document.getElementById('tech-asset-mgr')!.innerText = sdk['assetManagerAddress'] || 'Pending';
+            updateTechnicalDetails(evmAddress, paymentResult.txHash);
 
             document.getElementById('step-pay')!.className = 'step-node completed';
             document.getElementById('step-fdc')!.className = 'step-node active';
@@ -611,9 +628,7 @@ async function simulatePaymentSigning() {
     sdk.setWalletClient(walletClient, account.address);
 
     // Update tracker details
-    document.getElementById('tech-evm-addr')!.innerText = evmAddress;
-    document.getElementById('tech-xrpl-hash')!.innerText = paymentResult.txHash;
-    document.getElementById('tech-asset-mgr')!.innerText = sdk['assetManagerAddress'] || 'Pending';
+    updateTechnicalDetails(evmAddress, paymentResult.txHash);
 
     document.getElementById('step-pay')!.className = 'step-node completed';
     document.getElementById('step-fdc')!.className = 'step-node active';
