@@ -85,6 +85,9 @@ export async function fetchFdcProof(votingRoundId: number, requestBytes: string)
       return null; // proof not found/not ready yet
     }
     const errText = await response.text();
+    if (response.status === 400 && errText.includes('attestation request not found')) {
+      return null; // round not finalized/request not indexed yet
+    }
     throw new Error(`DA Layer error (${response.status}): ${errText}`);
   }
 

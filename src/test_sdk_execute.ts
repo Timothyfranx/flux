@@ -16,7 +16,6 @@ async function main() {
 
   console.log('Initializing FXRPDirectMintSDK...');
   const sdk = new FXRPDirectMintSDK({
-    xrplSeed,
     xrplUrl: 'wss://s.altnet.rippletest.net:51233',
     flarePrivateKey,
     flareRpcUrl: 'https://coston2-api.flare.network/ext/C/rpc',

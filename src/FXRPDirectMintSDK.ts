@@ -6,20 +6,16 @@ import {
   WalletClient,
   Address,
   Hash,
-  keccak256,
-  stringToBytes,
 } from 'viem';
 import { flareTestnet } from 'viem/chains';
 const { privateKeyToAccount } = require('viem/accounts');
 const { coston2 } = require('@flarenetwork/flare-wagmi-periphery-package');
-import { Client as XrplClient, Wallet as XrplWallet, xrpToDrops } from 'xrpl';
 
 import {
   FXRPDirectMintConfig,
   MintSettings,
   PaymentParams,
   PaymentResult,
-  MintStatus,
   StatusCallback,
 } from './types';
 import { encodeDirectMintingMemo } from './utils/memo';
@@ -202,81 +198,11 @@ export class FXRPDirectMintSDK {
       recipientEvmAddress: params.recipientEvmAddress,
       lots: params.lots,
       amountXRP,
-      minimumFeeXRP: calculatedFeeXRP,
+      mintingFeeXRP: calculatedFeeXRP,
       executorFeeXRP,
       totalXRP,
       memoHex,
     };
-  }
-
-  /**
-   * Connects to XRPL and executes the payment transaction (for backend/test script usage).
-   * Blocks until transaction has at least 3 validations.
-   */
-  public async executePayment(params: PaymentParams): Promise<PaymentResult> {
-    if (!this.config.xrplSeed) {
-      throw new Error('XRPL Seed not configured in SDK. Direct payment submission requires local seed.');
-    }
-
-    const wallet = XrplWallet.fromSeed(this.config.xrplSeed);
-    const client = new XrplClient(this.config.xrplUrl);
-
-    await client.connect();
-
-    try {
-      const drops = xrpToDrops(params.totalXRP);
-      const tx = {
-        TransactionType: 'Payment' as const,
-        Account: wallet.address,
-        Amount: drops,
-        Destination: params.vaultAddressXRP,
-        Memos: [
-          {
-            Memo: {
-              MemoType: '46417373657473', // Hex for "FAssets"
-              MemoFormat: '6170706c69636174696f6e2f6f637465742d73747265616d', // Hex for "application/octet-stream"
-              MemoData: params.memoHex,
-            },
-          },
-        ],
-      };
-
-      const prepared = await client.autofill(tx);
-      const signed = wallet.sign(prepared);
-      const result = await client.submitAndWait(signed.tx_blob);
-
-      const meta = result.result.meta;
-      if (typeof meta === 'object' && meta && meta.TransactionResult !== 'tesSUCCESS') {
-        throw new Error(`XRPL Transaction failed with result: ${meta.TransactionResult}`);
-      }
-
-      // Convert XRPL block close time to unix timestamp
-      const ledgerIndex = result.result.ledger_index;
-      const ledger = await client.request({
-        command: 'ledger',
-        ledger_index: ledgerIndex,
-      });
-      const closeTime = ledger.result.ledger.close_time;
-      const blockTimestamp = closeTime + 946684800; // Ripple Epoch to Unix Epoch
-
-      // Parse metadata for actual spent amounts
-      let spentDrops = drops;
-      let receivedDrops = drops;
-      if (typeof meta === 'object' && meta && meta.delivered_amount) {
-        receivedDrops = typeof meta.delivered_amount === 'string' ? meta.delivered_amount : drops;
-      }
-
-      return {
-        txHash: signed.hash,
-        blockTimestamp,
-        spentAmountDrops: spentDrops,
-        receivedAmountDrops: receivedDrops,
-        receivingAddressXRP: params.vaultAddressXRP,
-      };
-
-    } finally {
-      await client.disconnect();
-    }
   }
 
   /**
@@ -413,7 +339,7 @@ export class FXRPDirectMintSDK {
       try {
         execHash = await this.executeMint(proof);
       } catch (error: any) {
-        // Decode custom revert error 0x40d8d67b (Limiter Delay)
+        // Decode custom revert error signatures
         const errorData =
           error.data ||
           (error.cause && error.cause.data) ||
@@ -421,9 +347,17 @@ export class FXRPDirectMintSDK {
           (error.cause && error.cause.signature) ||
           error.raw ||
           (error.cause && error.cause.raw);
+
+        // Selector 0x40d8d67b: DirectMintingStillDelayed(uint256 executionAllowedAt)
         const isDelayed =
           typeof errorData === 'string' &&
           (errorData.startsWith('0x40d8d67b') || errorData.includes('0x40d8d67b'));
+
+        // Selector 0x18dce79f: PaymentAlreadyConfirmed()
+        const isAlreadyConfirmed =
+          typeof errorData === 'string' &&
+          (errorData.startsWith('0x18dce79f') || errorData.includes('0x18dce79f'));
+
         if (isDelayed) {
           const delayState = await getDirectMintingDelayState(
             this.publicClient,
@@ -437,6 +371,15 @@ export class FXRPDirectMintSDK {
             state: 'Delayed',
             message: `Minting rate-limits hit. The transaction is delayed by the protocol for safety.`,
             allowedAt: new Date(Number(delayState.allowedAt) * 1000),
+          });
+          return;
+        }
+
+        if (isAlreadyConfirmed) {
+          callback({
+            state: 'Complete',
+            message: `Direct minting has already been finalized and executed.`,
+            txHash: paymentResult.txHash,
           });
           return;
         }

@@ -1,12 +1,10 @@
 const esbuild = require('esbuild');
 const path = require('path');
-require('dotenv').config();
 
-const xrplSeed = process.env.XRPL_SEED || '';
-const coston2PrivateKey = process.env.COSTON2_PRIVATE_KEY || '';
+console.log('Bundling widget.ts for browser deployment (Production Safe)...');
 
-console.log('Bundling widget.ts for browser deployment...');
-
+// No environment secrets are read or inlined here.
+// Dev/Simulation mode retrieves test credentials strictly from local storage or UI inputs at runtime.
 esbuild.build({
   entryPoints: [path.join(__dirname, '../src/widget.ts')],
   bundle: true,
@@ -15,10 +13,6 @@ esbuild.build({
   platform: 'browser',
   sourcemap: true,
   define: {
-    'PROCESS_ENV': JSON.stringify({
-      XRPL_SEED: xrplSeed,
-      COSTON2_PRIVATE_KEY: coston2PrivateKey
-    }),
     'process.env.NODE_ENV': '"production"'
   }
 }).then(() => {

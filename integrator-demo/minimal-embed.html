@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orion Swap Portal (Minimal Widget Embed Demo)</title>
+  <meta name="description" content="A second separate host dApp embedding the modular FXRP Direct Minting widget.">
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    /* Reset and Orion Portal specific styling */
+    body {
+      background-color: #0d0e12;
+      color: #f0f3f6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .portal-container {
+      width: 100%;
+      max-width: 480px;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .portal-card {
+      background-color: #15171e;
+      border: 1px solid #232733;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .portal-header {
+      text-align: center;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #232733;
+      padding-bottom: 16px;
+    }
+    .portal-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0 0 6px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .portal-subtitle {
+      font-size: 13px;
+      color: #8c96a8;
+      margin: 0;
+    }
+    .embed-zone {
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-container">
+    <div class="portal-card">
+      <header class="portal-header">
+        <h1 class="portal-title">
+          🌌 Orion Swap Portal
+        </h1>
+        <p class="portal-subtitle">Cross-chain swaps & liquidity integrations</p>
+      </header>
+
+      <div class="embed-zone">
+        <!-- Dropping the FXRP Mint Widget here -->
+        <div id="fxrp-mint-widget"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load the modular widget script from the parent directory -->
+  <script src="../dist/widget.js"></script>
+</body>
+</html>

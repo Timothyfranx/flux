@@ -1,5 +1,4 @@
 export interface FXRPDirectMintConfig {
-  xrplSeed?: string;
   xrplUrl: string;
   flarePrivateKey?: string;
   flareRpcUrl: string;
@@ -25,7 +24,7 @@ export interface PaymentParams {
   recipientEvmAddress: string;
   lots: number;
   amountXRP: number;
-  minimumFeeXRP: number;
+  mintingFeeXRP: number; // renamed from minimumFeeXRP to avoid confusion with the protocol floor fee
   executorFeeXRP: number;
   totalXRP: number;
   memoHex: string;

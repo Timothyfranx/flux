@@ -2,18 +2,26 @@ const { keccak256, stringToBytes } = require('viem');
 
 const errorNames = [
   'AlreadyExecuted',
-  'DirectMintAlreadyExecuted',
-  'DirectMintAlreadyFinalized',
-  'MintAlreadyFinalized',
-  'PaymentAlreadyUsed',
-  'AttestationAlreadyUsed',
-  'ProofAlreadyUsed',
-  'DirectMintingAlreadyExecuted',
-  'MintAlreadyExecuted',
-  'DirectMintExecuted',
-  'PaymentAlreadySubmitted',
   'AlreadyFinalized',
-  'DirectMintAlreadyExecutedError',
+  'AlreadyProcessed',
+  'AttestationAlreadyProcessed',
+  'ProofAlreadyProcessed',
+  'DuplicatePayment',
+  'PaymentAlreadyFinalized',
+  'PaymentAlreadyExecuted',
+  'PaymentAlreadySubmitted',
+  'DirectMintingAlreadyExecuted',
+  'DirectMintingAlreadyProcessed',
+  'DirectMintingAlreadyFinalized',
+  'DirectMintAlreadyProcessed',
+  'PaymentAlreadyProcessed',
+  'PaymentAlreadyRedeemed',
+  'PaymentAlreadyMinted',
+  'DirectMintAlreadyMinted',
+  'DirectMintingAlreadyMinted',
+  'DirectMintingPaymentAlreadyUsed',
+  'DirectMintPaymentAlreadyUsed',
+  'PaymentAlreadyUsed',
 ];
 
 const target = '0x18dce79f';
@@ -21,7 +29,6 @@ const target = '0x18dce79f';
 console.log('Searching for target selector:', target);
 
 for (const name of errorNames) {
-  // Let's test with no params, then with typical params
   const signatures = [
     `${name}()`,
     `${name}(bytes32)`,

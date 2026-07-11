@@ -1,4 +1,4 @@
-import { toHex, pad } from 'viem';
+import { toHex, pad, keccak256, stringToBytes } from 'viem';
 
 /**
  * Converts a string or hex value into a 32-byte hex string, right-padded with zeroes.
@@ -52,8 +52,6 @@ export async function prepareFdcRequestBytes(params: PrepareRequestParams): Prom
   const resJson = (await response.json()) as { abiEncodedRequest: string };
   return resJson.abiEncodedRequest;
 }
-
-import { keccak256, stringToBytes } from 'viem';
 
 export function receivingAddressToHash(address: string): string {
   return keccak256(stringToBytes(address));

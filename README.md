@@ -29,29 +29,48 @@ Integrators who want to build their own custom UI can use the underlying `@flux/
 
 ```typescript
 import { FXRPDirectMintSDK } from './FXRPDirectMintSDK';
+import { createWalletClient, custom } from 'viem';
+import { flareTestnet } from 'viem/chains';
 
-// Initialize the SDK
+// 1. Initialize the SDK (Zero Custody — no private keys or seeds required!)
 const sdk = new FXRPDirectMintSDK({
-  xrplSeed: 'sYourTestnetSeedKey',
   xrplUrl: 'wss://s.altnet.rippletest.net:51233',
-  flarePrivateKey: '0xYourFlarePrivateKey',
   flareRpcUrl: 'https://coston2-api.flare.network/ext/C/rpc',
+  registryAddress: '0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019',
 });
 
-// 1. Fetch live configurations
+// 2. Fetch live settings
 const settings = await sdk.getSettings();
 console.log(`Lot Size: ${settings.lotSizeXRP} XRP`);
 
-// 2. Prepare payment details & binary memo encoding
+// 3. Connect user's EVM browser wallet (e.g. Bifrost or MetaMask)
+const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+const walletClient = createWalletClient({
+  chain: flareTestnet,
+  transport: custom(window.ethereum)
+});
+sdk.setWalletClient(walletClient, account);
+
+// 4. Prepare payment details & binary memo encoding
 const paymentParams = await sdk.preparePayment({
-  recipientEvmAddress: '0x7bEa8C45F0cE61DF69914f5b04fa62a3D6f1E53c',
+  recipientEvmAddress: account,
   lots: 1
 });
 
-// 3. Send XRP payment with direct-minting memo
-const paymentResult = await sdk.executePayment(paymentParams);
+console.log(`Vault Destination: ${paymentParams.vaultAddressXRP}`);
+console.log(`Expected XRP: ${paymentParams.totalXRP}`);
+console.log(`Encoded Memo: ${paymentParams.memoHex}`);
 
-// 4. Request attestation & monitor progress through FDC proof & finalization
+// 5. User submits the transaction from their XRP wallet (e.g. scanning QR code)
+// 6. Monitor progress through FDC proof & finalization on Flare
+const paymentResult = {
+  txHash: '0xYourXRPLPaymentTransactionHash',
+  blockTimestamp: 1783607782, // Unix timestamp of payment validation
+  spentAmountDrops: '10200000',
+  receivedAmountDrops: '10200000',
+  receivingAddressXRP: paymentParams.vaultAddressXRP,
+};
+
 await sdk.monitorStatus(paymentResult, (status) => {
   console.log(`State: ${status.state} | Message: ${status.message}`);
   if (status.state === 'Delayed') {
