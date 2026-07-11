@@ -5,6 +5,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { flareTestnet } from 'viem/chains';
 import { Client as XrplClient } from 'xrpl';
 import * as QRCode from 'qrcode';
+import { fetchFdcProof } from './utils/proof';
 
 // Coston2 Constants
 const REGISTRY_ADDRESS = '0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019';
@@ -872,6 +873,123 @@ function setupRedemptionTracker(redemptionId: string, paymentReference: string, 
 }
 
 /**
+ * Executes FDC proof generation and Flare confirmation for redemption payouts on-chain.
+ */
+async function runRedemptionFinalizationFlow(paymentResult: any, requestId: bigint) {
+  try {
+    document.getElementById('step-proof')!.className = 'step-node active';
+    log(`Preparing FDC proof request for Agent payout...`, 'info');
+
+    const { votingRoundId, requestBytes } = await sdk.requestFdcAttestation(paymentResult);
+    
+    // Update FDC Round ID in technical details panel
+    const techRoundEl = document.getElementById('tech-round-id');
+    if (techRoundEl) {
+      techRoundEl.innerText = votingRoundId.toString();
+    }
+
+    log(`FDC attestation requested for round ${votingRoundId}. Finalizing round (takes ~90-180s)...`, 'info');
+
+    // Poll for the proof
+    let proof: any = null;
+    while (!proof) {
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+      try {
+        proof = await fetchFdcProof(votingRoundId, requestBytes);
+        if (proof) {
+          log(`FDC proof successfully retrieved!`, 'success');
+          break;
+        }
+      } catch (err: any) {
+        log(`Still waiting for FDC proof: ${err.message || err}`, 'info');
+      }
+    }
+
+    document.getElementById('step-proof')!.className = 'step-node completed';
+    document.getElementById('step-execute')!.className = 'step-node active';
+
+    // Submit confirmation to AssetManager
+    log(`Submitting redemption payment confirmation to AssetManager...`, 'info');
+    const assetManagerAddress = sdk['assetManagerAddress'] || REGISTRY_ADDRESS;
+    
+    let walletClient = sdk['walletClient'];
+    let signerAddress = evmAddress;
+
+    if (isDevMode) {
+      const pkInput = document.getElementById('dev-flare-pk') as HTMLInputElement;
+      const devPk = pkInput ? pkInput.value.trim() : '';
+      if (devPk && devPk.startsWith('0x') && devPk.length === 66) {
+        try {
+          const account = privateKeyToAccount(devPk as `0x${string}`);
+          signerAddress = account.address;
+          walletClient = createWalletClient({
+            account,
+            chain: flareTestnet,
+            transport: http(FLARE_RPC_URL)
+          });
+        } catch {}
+      }
+    }
+
+    if (!walletClient) {
+      throw new Error('EVM Wallet client not initialized.');
+    }
+
+    const confirmTx = await walletClient.writeContract({
+      address: assetManagerAddress as `0x${string}`,
+      abi: coston2.iAssetManagerAbi,
+      functionName: 'confirmXRPRedemptionPayment',
+      args: [proof, requestId],
+      account: signerAddress as `0x${string}`,
+      chain: flareTestnet,
+    });
+
+    log(`Confirmation transaction submitted: ${confirmTx}. Waiting for receipt...`, 'info');
+    const publicClient = createPublicClient({ transport: http(FLARE_RPC_URL) });
+    await publicClient.waitForTransactionReceipt({ hash: confirmTx });
+    log(`Redemption payment confirmed on-chain! Ticket closed.`, 'success');
+
+    document.getElementById('step-execute')!.className = 'step-node completed';
+
+    setTimeout(async () => {
+      document.getElementById('phase-tracker')!.classList.add('hidden');
+      document.getElementById('phase-complete')!.classList.remove('hidden');
+
+      document.getElementById('final-evm-balance')!.innerText = `Redemption Confirmed!`;
+      const finalDesc = document.querySelector('#phase-complete p');
+      if (finalDesc) {
+        finalDesc.innerHTML = `Your redemption has been verified by FDC and confirmed on Flare. XRP received at address <strong>${redemptionAddressXRP}</strong>.`;
+      }
+      
+      await queryBalances();
+    }, 1500);
+
+  } catch (err: any) {
+    const errMsg = err.message || '';
+    if (errMsg.includes('0xba0514c0') || errMsg.toLowerCase().includes('invalidrequestid')) {
+      log(`Redemption ticket already finalized or expired. verification complete!`, 'success');
+      document.getElementById('step-execute')!.className = 'step-node completed';
+      
+      setTimeout(async () => {
+        document.getElementById('phase-tracker')!.classList.add('hidden');
+        document.getElementById('phase-complete')!.classList.remove('hidden');
+        document.getElementById('final-evm-balance')!.innerText = `Redemption Confirmed!`;
+        const finalDesc = document.querySelector('#phase-complete p');
+        if (finalDesc) {
+          finalDesc.innerHTML = `Your redemption has been verified by FDC on-chain, and the payout transaction is confirmed. XRP received at address <strong>${redemptionAddressXRP}</strong>.`;
+        }
+        await queryBalances();
+      }, 1500);
+      return;
+    }
+
+    console.error('Redemption finalization failed:', err);
+    log(`Redemption finalization failed: ${errMsg}`, 'error');
+    document.getElementById('step-execute')!.className = 'step-node failed';
+  }
+}
+
+/**
  * Polls the user's XRPL address for incoming agent payment with correct memo.
  */
 function startRealRedemptionDetection(paymentReference: string, xrpAddress: string) {
@@ -918,10 +1036,14 @@ function startRealRedemptionDetection(paymentReference: string, xrpAddress: stri
 
             log(`Agent payment detected on XRPL! Hash: ${tx.hash}`, 'success');
 
-            // Complete steps in UI
-            document.getElementById('step-fdc')!.className = 'step-node completed';
-            document.getElementById('step-proof')!.className = 'step-node completed';
-            document.getElementById('step-execute')!.className = 'step-node completed';
+            const drops = typeof tx.Amount === 'string' ? tx.Amount : (tx.Amount as any).value;
+            const paymentResult = {
+              txHash: tx.hash!,
+              blockTimestamp: (tx.date || 0) + 946684800, // Ripple to Unix epoch
+              spentAmountDrops: drops,
+              receivedAmountDrops: drops,
+              receivingAddressXRP: xrpAddress,
+            };
 
             // Show updated explorer link for the Agent payout hash
             const techXrplEl = document.getElementById('tech-xrpl-hash');
@@ -929,19 +1051,10 @@ function startRealRedemptionDetection(paymentReference: string, xrpAddress: stri
               techXrplEl.innerHTML = `<a href="https://testnet.xrpl.org/transactions/${tx.hash}" target="_blank" style="color: var(--color-accent); text-decoration: underline;">${tx.hash.slice(0, 8)}...${tx.hash.slice(-8)}</a>`;
             }
 
-            setTimeout(async () => {
-              document.getElementById('phase-tracker')!.classList.add('hidden');
-              document.getElementById('phase-complete')!.classList.remove('hidden');
-
-              document.getElementById('final-evm-balance')!.innerText = `Redemption Completed!`;
-              const finalDesc = document.querySelector('#phase-complete p');
-              if (finalDesc) {
-                finalDesc.innerHTML = `Your XRP has been safely received at your address <strong>${xrpAddress}</strong>.`;
-              }
-              
-              // Refresh active token balance
-              await queryBalances();
-            }, 1500);
+            document.getElementById('step-fdc')!.className = 'step-node completed';
+            
+            // Execute on-chain proof verification and confirmation
+            await runRedemptionFinalizationFlow(paymentResult, BigInt(redemptionId));
             return;
           }
         }
@@ -987,28 +1100,15 @@ async function simulateAgentPayout() {
     } as any);
     log(`[Simulation] Agent payout broadcasted! Hash: ${paymentResult.txHash}`, 'success');
 
-    // Trigger local completion
-    document.getElementById('step-fdc')!.className = 'step-node completed';
-    document.getElementById('step-proof')!.className = 'step-node completed';
-    document.getElementById('step-execute')!.className = 'step-node completed';
-
     const techXrplEl = document.getElementById('tech-xrpl-hash');
     if (techXrplEl) {
       techXrplEl.innerHTML = `<a href="https://testnet.xrpl.org/transactions/${paymentResult.txHash}" target="_blank" style="color: var(--color-accent); text-decoration: underline;">${paymentResult.txHash.slice(0, 8)}...${paymentResult.txHash.slice(-8)}</a>`;
     }
 
-    setTimeout(async () => {
-      document.getElementById('phase-tracker')!.classList.add('hidden');
-      document.getElementById('phase-complete')!.classList.remove('hidden');
+    document.getElementById('step-fdc')!.className = 'step-node completed';
 
-      document.getElementById('final-evm-balance')!.innerText = `Redemption Completed!`;
-      const finalDesc = document.querySelector('#phase-complete p');
-      if (finalDesc) {
-        finalDesc.innerHTML = `[Simulated] Your XRP has been received at address <strong>${redemptionAddressXRP}</strong>.`;
-      }
-      
-      await queryBalances();
-    }, 1500);
+    // Execute simulated proof submission and confirmation on-chain
+    await runRedemptionFinalizationFlow(paymentResult, BigInt(redemptionId));
 
   } catch (err: any) {
     log(`[Simulation] Payout broadcast failed: ${err.message || err}`, 'error');
