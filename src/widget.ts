@@ -819,7 +819,7 @@ async function requestRedemption(amountFXRP: number, xrpAddress: string): Promis
 
     if (logs && logs.length > 0) {
       const eventData = logs[0].args as any;
-      redemptionId = eventData.redemptionId.toString();
+      redemptionId = (eventData.requestId || eventData.redemptionId).toString();
       redemptionReference = eventData.paymentReference;
       redemptionAddressXRP = xrpAddress;
 
