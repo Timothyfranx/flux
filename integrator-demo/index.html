@@ -131,7 +131,7 @@
             <td>$12,450,120</td>
             <td style="color: var(--color-success); font-weight: 600;">4.25%</td>
             <td id="kinetic-flr-balance">-- FLR</td>
-            <td><button class="btn-supply">Supply</button></td>
+            <td><button id="btn-supply-flr" class="btn-supply">Supply</button></td>
           </tr>
           <tr>
             <td>
@@ -143,7 +143,7 @@
             <td>$28,140,850</td>
             <td style="color: var(--color-success); font-weight: 600;">2.80%</td>
             <td id="kinetic-xrp-balance">-- XRP</td>
-            <td><button class="btn-supply">Supply</button></td>
+            <td><button id="btn-supply-xrp" class="btn-supply">Supply</button></td>
           </tr>
           <tr style="background: rgba(0, 0, 0, 0.01);">
             <td>
@@ -154,11 +154,52 @@
             </td>
             <td>$4,120,490</td>
             <td style="color: var(--color-success); font-weight: 600;">6.85%</td>
-            <td>0.00 FXRP</td>
-            <td><button class="btn-supply" style="background: var(--color-accent); color: #ffffff; border-color: var(--color-accent);">Supply FXRP</button></td>
+            <td id="kinetic-fxrp-balance">0.00 FXRP</td>
+            <td><button id="btn-supply-fxrp" class="btn-supply" style="background: var(--color-accent); color: #ffffff; border-color: var(--color-accent);">Supply FXRP</button></td>
           </tr>
         </tbody>
       </table>
+
+      <!-- Liquidation Risk & Health Monitor (Kinetic Companion View) -->
+      <div class="risk-monitor-card" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; background: var(--bg-primary); margin-bottom: 24px;">
+        <h3 style="font-size: 13px; font-weight: 600; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">
+          📊 Coston2 Liquidation Monitor
+        </h3>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Collateral Value (FXRP + FLR)</span>
+            <span id="kinetic-collateral-val" style="font-weight: 600;">$0.00</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Borrowed Value (USD)</span>
+            <span id="kinetic-borrowed-val" style="font-weight: 600;">$0.00</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Current Loan-to-Value (LTV)</span>
+            <span id="kinetic-ltv-val" style="font-weight: 600;">0%</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Liquidation Threshold LTV</span>
+            <span style="color: var(--color-error); font-weight: 600;">80%</span>
+          </div>
+          
+          <!-- LTV Progress Bar -->
+          <div style="width: 100%; height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; margin: 4px 0;">
+            <div id="kinetic-ltv-bar" style="width: 0%; height: 100%; background: var(--color-success); transition: width 0.3s ease;"></div>
+          </div>
+          
+          <!-- Health status badge -->
+          <div id="kinetic-health-badge" style="text-align: center; padding: 6px; border-radius: 4px; font-weight: bold; background: rgba(100, 116, 139, 0.1); color: var(--text-dimmed); font-size: 11px;">
+            NO POSITION ACTIVE (SUPPLY COLLATERAL)
+          </div>
+          
+          <!-- Action controls to simulate borrowing to see LTV change -->
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button id="btn-simulate-borrow" style="flex: 1; padding: 6px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 11px; font-weight: 600;">Simulate Borrow (+ $10 USD)</button>
+            <button id="btn-simulate-repay" style="flex: 1; padding: 6px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 11px; font-weight: 600;">Repay All</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Integrated FXRP Embed Mounting Zone -->
       <div class="widget-mounting-zone">
@@ -176,13 +217,113 @@
   
   <!-- Mini script to replicate balances display on the parent Kinetic app -->
   <script>
+    let suppliedFXRP = 0;
+    let suppliedFLR = 0;
+    let borrowedUSD = 0;
+    const priceFXRP = 2.50; // Mock FTSO XRP/USD feed price
+    const priceFLR = 0.05;  // Mock FTSO FLR/USD feed price
+
+    function calculateLTV() {
+      const collateralVal = (suppliedFXRP * priceFXRP) + (suppliedFLR * priceFLR);
+      const ltv = collateralVal > 0 ? (borrowedUSD / collateralVal) * 100 : 0;
+
+      // Update UI elements
+      document.getElementById('kinetic-collateral-val').innerText = `$${collateralVal.toFixed(2)}`;
+      document.getElementById('kinetic-borrowed-val').innerText = `$${borrowedUSD.toFixed(2)}`;
+      document.getElementById('kinetic-ltv-val').innerText = `${ltv.toFixed(1)}%`;
+
+      const bar = document.getElementById('kinetic-ltv-bar');
+      const badge = document.getElementById('kinetic-health-badge');
+
+      if (bar) {
+        bar.style.width = `${Math.min(ltv, 100)}%`;
+        if (ltv >= 80) {
+          bar.style.background = 'var(--color-error)';
+        } else if (ltv >= 75) {
+          bar.style.background = 'var(--color-error)';
+        } else if (ltv >= 50) {
+          bar.style.background = 'var(--color-warning)';
+        } else {
+          bar.style.background = 'var(--color-success)';
+        }
+      }
+
+      if (badge) {
+        if (collateralVal === 0) {
+          badge.innerText = 'NO POSITION ACTIVE (SUPPLY COLLATERAL)';
+          badge.style.background = 'rgba(100, 116, 139, 0.1)';
+          badge.style.color = 'var(--text-dimmed)';
+        } else if (ltv >= 80) {
+          badge.innerText = '⚠️ LIQUIDATION RISK (LTV >= 80%)';
+          badge.style.background = 'rgba(220, 38, 38, 0.1)';
+          badge.style.color = 'var(--color-error)';
+        } else if (ltv >= 75) {
+          badge.innerText = 'HIGH RISK (LTV >= 75%)';
+          badge.style.background = 'rgba(220, 38, 38, 0.1)';
+          badge.style.color = 'var(--color-error)';
+        } else if (ltv >= 50) {
+          badge.innerText = 'MODERATE RISK (LTV >= 50%)';
+          badge.style.background = 'rgba(217, 119, 6, 0.1)';
+          badge.style.color = 'var(--color-warning)';
+        } else {
+          badge.innerText = 'HEALTHY POSITION';
+          badge.style.background = 'rgba(22, 163, 74, 0.1)';
+          badge.style.color = 'var(--color-success)';
+        }
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      // Setup supply listeners
+      document.getElementById('btn-supply-fxrp').addEventListener('click', () => {
+        const amt = prompt('Enter the amount of FXRP to supply as collateral:', '10');
+        if (amt) {
+          const val = parseFloat(amt) || 0;
+          if (val > 0) {
+            suppliedFXRP += val;
+            calculateLTV();
+            alert(`Successfully supplied ${val} FXRP to Kinetic pool.`);
+          }
+        }
+      });
+
+      document.getElementById('btn-supply-flr').addEventListener('click', () => {
+        const amt = prompt('Enter the amount of FLR to supply as collateral:', '1000');
+        if (amt) {
+          const val = parseFloat(amt) || 0;
+          if (val > 0) {
+            suppliedFLR += val;
+            calculateLTV();
+            alert(`Successfully supplied ${val} FLR to Kinetic pool.`);
+          }
+        }
+      });
+
+      // Simulation borrow / repay actions
+      document.getElementById('btn-simulate-borrow').addEventListener('click', () => {
+        const collateralVal = (suppliedFXRP * priceFXRP) + (suppliedFLR * priceFLR);
+        if (collateralVal === 0) {
+          alert('You must supply collateral (FLR or FXRP) first before borrowing.');
+          return;
+        }
+        borrowedUSD += 10;
+        calculateLTV();
+      });
+
+      document.getElementById('btn-simulate-repay').addEventListener('click', () => {
+        borrowedUSD = 0;
+        calculateLTV();
+      });
+
       // Poll the widget elements when they are loaded to display on the parent app
-      setTimeout(() => {
+      setInterval(() => {
         const xrpVal = document.getElementById('xrpl-balance')?.innerText;
         const flrVal = document.getElementById('flare-balance')?.innerText;
+        const fxrpVal = document.getElementById('fasset-balance')?.innerText;
+        
         if (xrpVal) document.getElementById('kinetic-xrp-balance').innerText = xrpVal;
         if (flrVal) document.getElementById('kinetic-flr-balance').innerText = flrVal;
+        if (fxrpVal) document.getElementById('kinetic-fxrp-balance').innerText = fxrpVal;
       }, 3000);
     });
   </script>
