@@ -2,6 +2,7 @@ import { FXRPDirectMintSDK } from '../src/FXRPDirectMintSDK';
 import { createPublicClient, http, formatUnits } from 'viem';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { Client as XrplClient } from 'xrpl';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -13,16 +14,40 @@ const coston2 = require('@flarenetwork/flare-wagmi-periphery-package').coston2;
 
 async function main() {
   const flarePrivateKey = process.env.COSTON2_PRIVATE_KEY;
+  const hash = 'B5677D3180246CCE39E7C8208394758D4700155F67C6C68D93B6DDCC7BF6DFA6';
 
   if (!flarePrivateKey) {
-    console.error('Error: COSTON2_PRIVATE_KEY must be configured in your .env file.');
-    process.exit(1);
+    console.error('Error: COSTON2_PRIVATE_KEY is missing.');
+    return;
   }
 
-  console.log('--- Starting FDC & EVM Direct Finalization Test ---');
+  console.log('--- Finalizing Specific Minting Transaction Hash ---');
+  
+  // 1. Fetch transaction details from XRPL
+  const xrplClient = new XrplClient(XRPL_URL);
+  await xrplClient.connect();
+  const txInfo = await xrplClient.request({
+    command: 'tx',
+    transaction: hash,
+  });
+  await xrplClient.disconnect();
 
-  // Initialize the SDK
-  console.log('Initializing SDK...');
+  const tx = txInfo.result as any;
+  const ledgerCloseTimeRipple = tx.date; // Ripple Epoch
+  const blockTimestamp = ledgerCloseTimeRipple + 946684800; // Unix Epoch
+  
+  const detectedResult = {
+    txHash: tx.hash,
+    blockTimestamp,
+    spentAmountDrops: '10200000', // 10.2 XRP in drops
+    receivedAmountDrops: '10200000',
+    receivingAddressXRP: tx.Destination,
+  };
+
+  console.log(`Detected transaction on XRPL!`);
+  console.log(`Timestamp: ${blockTimestamp} | Receiving Address: ${detectedResult.receivingAddressXRP}`);
+
+  // 2. Initialize SDK
   const sdk = new FXRPDirectMintSDK({
     xrplUrl: XRPL_URL,
     flarePrivateKey,
@@ -32,37 +57,19 @@ async function main() {
 
   const settings = await sdk.getSettings();
 
-  // Define EVM recipient address from private key
-  const { privateKeyToAccount } = require('viem/accounts');
-  const account = privateKeyToAccount(flarePrivateKey);
-  const recipient = account.address;
-  console.log(`EVM Recipient Address: ${recipient}`);
-
-  // Use the verified transaction hash from our recent XRPL broadcast
-  const detectedResult = {
-    txHash: '77F39358001A063079BEE561CAF1E3EAE2F88AE32123DCB621CB340CC9063559',
-    blockTimestamp: 837264101 + 946684800, // Close time of ledger 19032679
-    spentAmountDrops: '10200000',
-    receivedAmountDrops: '10200000',
-    receivingAddressXRP: 'rDhpmiPq4BVBDWMVdSrmkgt8thKyRzGV1p',
-  };
-
-  console.log(`\nUsing Validated XRPL Payment Hash: ${detectedResult.txHash}`);
-  console.log('Initiating FDC proof generation and Flare finalization...');
-
+  // 3. Monitor and Execute Direct Minting
+  console.log('Submitting FDC request and polling for finalization...');
   await sdk.monitorStatus(detectedResult, async (status) => {
     console.log(`[Status Event] State: ${status.state} | Message: ${status.message}`);
     
     if (status.state === 'Delayed') {
-      console.log(`\nRate limit hit! Allowed to execute at: ${status.allowedAt}`);
-      console.log('Finalization status check completed.');
+      console.log(`Rate limit delay hit. execution allowed at: ${status.allowedAt}`);
       process.exit(0);
     }
     
     if (status.state === 'Complete') {
-      console.log('\nDirect Minting finalized successfully!');
+      console.log('>>> Minting finalized successfully!');
       
-      // Query final balance
       const publicClient = createPublicClient({ transport: http(FLARE_RPC_URL) });
       const fAssetAddress = await publicClient.readContract({
         address: settings.assetManagerAddress as `0x${string}`,
@@ -82,25 +89,10 @@ async function main() {
           }
         ],
         functionName: 'balanceOf',
-        args: [recipient as `0x${string}`],
+        args: [recipientAddress(flarePrivateKey)],
       }) as bigint;
 
-      const decimals = await publicClient.readContract({
-        address: fAssetAddress,
-        abi: [
-          {
-            type: 'function',
-            name: 'decimals',
-            inputs: [],
-            outputs: [{ type: 'uint8' }],
-            stateMutability: 'view',
-          }
-        ],
-        functionName: 'decimals',
-      }) as number;
-
-      const formatted = formatUnits(fxrpBalance, decimals);
-      console.log(`Current Minted FXRP Token Balance: ${Number(formatted).toFixed(2)} FXRP`);
+      console.log(`Current Minted FXRP Token Balance: ${Number(fxrpBalance) / 1e6} FXRP`);
       process.exit(0);
     }
 
@@ -111,7 +103,10 @@ async function main() {
   });
 }
 
-main().catch((err) => {
-  console.error('Fatal test error:', err);
-  process.exit(1);
-});
+function recipientAddress(privateKey: string): `0x${string}` {
+  const { privateKeyToAccount } = require('viem/accounts');
+  const account = privateKeyToAccount(privateKey);
+  return account.address;
+}
+
+main().catch(console.error);
