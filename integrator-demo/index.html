@@ -394,8 +394,8 @@
           btn.style.borderColor = 'var(--text-primary)';
           btn.classList.add('active');
           const color = btn.getAttribute('data-color');
-          // Update accent color variables on the widget element
-          widget.style.setProperty('--color-accent', color);
+          // Update accent color variables on the document root
+          document.documentElement.style.setProperty('--color-accent', color);
           if (launcher) {
             launcher.style.background = color;
             launcher.style.boxShadow = `0 6px 20px ${color}4D`;
@@ -408,18 +408,19 @@
           themeBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           const theme = btn.getAttribute('data-theme');
+          const rootStyle = document.documentElement.style;
           if (theme === 'light') {
-            widget.style.setProperty('--bg-primary', '#F8FAFC');
-            widget.style.setProperty('--bg-secondary', '#FFFFFF');
-            widget.style.setProperty('--text-primary', '#0F172A');
-            widget.style.setProperty('--text-muted', '#64748B');
-            widget.style.setProperty('--border-color', '#E2E8F0');
+            rootStyle.setProperty('--bg-primary', '#F8FAFC');
+            rootStyle.setProperty('--bg-secondary', '#FFFFFF');
+            rootStyle.setProperty('--text-primary', '#0F172A');
+            rootStyle.setProperty('--text-muted', '#64748B');
+            rootStyle.setProperty('--border-color', '#E2E8F0');
           } else {
-            widget.style.setProperty('--bg-primary', '#0F172A');
-            widget.style.setProperty('--bg-secondary', '#1E293B');
-            widget.style.setProperty('--text-primary', '#F8FAFC');
-            widget.style.setProperty('--text-muted', '#94A3B8');
-            widget.style.setProperty('--border-color', '#334155');
+            rootStyle.setProperty('--bg-primary', '#0F172A');
+            rootStyle.setProperty('--bg-secondary', '#1E293B');
+            rootStyle.setProperty('--text-primary', '#F8FAFC');
+            rootStyle.setProperty('--text-muted', '#94A3B8');
+            rootStyle.setProperty('--border-color', '#334155');
           }
         });
       });

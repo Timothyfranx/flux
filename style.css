@@ -70,6 +70,30 @@ body {
   padding: 24px;
 }
 
+/* Limit widget card height and add custom thin scrollbar */
+#fxrp-mint-widget .mint-card {
+  max-height: 520px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+#fxrp-mint-widget .mint-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+#fxrp-mint-widget .mint-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#fxrp-mint-widget .mint-card::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+#fxrp-mint-widget .mint-card::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dimmed);
+}
+
 /* Header */
 .dashboard-header {
   display: flex;
