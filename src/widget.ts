@@ -79,14 +79,26 @@ function mountWidget() {
 
   container.innerHTML = `
     <main class="mint-card">
-      <header class="dashboard-header" style="margin-bottom: 12px;">
+      <header class="dashboard-header" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
         <div class="logo-container">
-          <h1 id="widget-main-title">FXRP Onboard Portal</h1>
+          <h1 id="widget-main-title" style="margin: 0; font-size: 16px; font-weight: bold; color: var(--text-primary);">FXRP Onboard Portal</h1>
         </div>
-        <div class="network-badge">Coston2 Testnet</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button id="btn-tx-history" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px; display: flex; align-items: center;" title="View Transaction History">🕒</button>
+          <div class="network-badge" style="margin: 0;">Coston2</div>
+        </div>
       </header>
 
-      <!-- Tab Selector -->
+      <!-- Transaction History Drawer -->
+      <div id="history-drawer" class="hidden" style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px; max-height: 220px; overflow-y: auto; box-sizing: border-box;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px;">
+          <span style="font-size: 11px; font-weight: bold; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px;">Recent Activities</span>
+          <button id="btn-clear-history" style="background: none; border: none; color: var(--color-error); font-size: 10px; cursor: pointer; font-weight: 600;">Clear All</button>
+        </div>
+        <div id="history-list" style="font-size: 11px; display: flex; flex-direction: column; gap: 6px;">
+          <!-- Items will be rendered here dynamically -->
+        </div>
+      </div>
       <div class="tab-selector" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
         <button class="tab-btn active" id="tab-mint" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid var(--color-accent); color: var(--text-primary); font-weight: 600; cursor: pointer; font-size: 13px;">Mint FXRP</button>
         <button class="tab-btn" id="tab-redeem" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; font-size: 13px;">Redeem FXRP</button>
@@ -121,6 +133,19 @@ function mountWidget() {
             <div class="fee-row total">
               <span>Total XRP Required</span>
               <span id="fee-total">10.2 XRP</span>
+            </div>
+          </div>
+          
+          <!-- Lot Calculator -->
+          <div style="margin-top: 14px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; font-size: 11px; box-sizing: border-box;">
+            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+              <span>🧮</span> XRP to Lot Calculator
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input type="number" id="calc-xrp-input" placeholder="Type XRP amount (e.g. 25)" style="flex: 1; padding: 6px 10px; font-size: 11px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); outline: none; box-sizing: border-box; font-family: inherit;" />
+            </div>
+            <div id="calc-xrp-output" style="margin-top: 6px; color: var(--text-muted); line-height: 1.5;">
+              Enter your available XRP to estimate lot conversion.
             </div>
           </div>
         </div>
@@ -646,6 +671,73 @@ function setupEventListeners() {
     // Restore default tab
     tabMint?.click();
   });
+
+  // Transaction History Event Listeners
+  const btnHistory = document.getElementById('btn-tx-history');
+  const btnClearHistory = document.getElementById('btn-clear-history');
+  const historyDrawer = document.getElementById('history-drawer');
+
+  btnHistory?.addEventListener('click', () => {
+    if (historyDrawer) {
+      historyDrawer.classList.toggle('hidden');
+      renderHistoryList();
+    }
+  });
+
+  btnClearHistory?.addEventListener('click', () => {
+    try {
+      localStorage.removeItem('fxrp_tx_history');
+      renderHistoryList();
+    } catch (e) {}
+  });
+
+  renderHistoryList(); // Initial render on load
+
+  // Interactive Lot Calculator Event Listener
+  const calcInput = document.getElementById('calc-xrp-input') as HTMLInputElement;
+  const calcOutput = document.getElementById('calc-xrp-output');
+  
+  calcInput?.addEventListener('input', () => {
+    const val = parseFloat(calcInput.value) || 0;
+    if (val < 10.2) {
+      if (calcOutput) calcOutput.innerHTML = `<span style="color: var(--color-error); font-weight: 500;">Minimum required to mint 1 lot is 10.2 XRP (including fees).</span>`;
+      return;
+    }
+    
+    // lots * 10.1 + 0.1 <= val => lots <= (val - 0.1) / 10.1
+    const lots = Math.floor((val - 0.1) / 10.1);
+    if (lots <= 0) {
+      if (calcOutput) calcOutput.innerHTML = `<span style="color: var(--color-error); font-weight: 500;">Amount not enough to cover fees for 1 lot (needs 10.2 XRP).</span>`;
+      return;
+    }
+    const xrpUsed = lots * 10;
+    const mintFee = lots * 0.1;
+    const execFee = 0.1;
+    const totalRequired = xrpUsed + mintFee + execFee;
+    const change = val - totalRequired;
+
+    if (calcOutput) {
+      calcOutput.innerHTML = `
+        <div style="margin-top: 4px; padding: 6px; background: var(--bg-secondary); border-radius: 4px; border: 1px solid var(--border-color);">
+          <strong>Convertible to:</strong> ${lots} Lot${lots > 1 ? 's' : ''} (${lots * 10} FXRP)<br/>
+          <strong>Total Required XRP:</strong> ${totalRequired.toFixed(2)} XRP<br/>
+          <strong>Unused XRP:</strong> ${change.toFixed(2)} XRP
+        </div>
+        <button id="btn-apply-calc" type="button" style="margin-top: 6px; padding: 4px 8px; border: 1px solid var(--color-accent); background: none; color: var(--color-accent); border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 600; font-family: inherit; transition: all 0.15s ease;">Apply to Mint</button>
+      `;
+
+      // Apply button action
+      const btnApply = document.getElementById('btn-apply-calc');
+      btnApply?.addEventListener('click', () => {
+        const lotCountVal = document.getElementById('lot-count-value');
+        if (lotCountVal) {
+          currentLots = lots;
+          lotCountVal.innerText = lots.toString();
+          updateFeeBreakdown();
+        }
+      });
+    }
+  });
 }
 
 /**
@@ -948,6 +1040,9 @@ async function runRedemptionFinalizationFlow(paymentResult: any, requestId: bigi
     const publicClient = createPublicClient({ transport: http(FLARE_RPC_URL) });
     await publicClient.waitForTransactionReceipt({ hash: confirmTx });
     log(`Redemption payment confirmed on-chain! Ticket closed.`, 'success');
+    
+    const amountVal = (document.getElementById('redeem-amount-val') as HTMLInputElement)?.value || '10';
+    saveTxToHistory('Redeem', `${amountVal} FXRP`, paymentResult.txHash, 'Complete');
 
     document.getElementById('step-execute')!.className = 'step-node completed';
 
@@ -967,6 +1062,7 @@ async function runRedemptionFinalizationFlow(paymentResult: any, requestId: bigi
   } catch (err: any) {
     const errMsg = err.message || '';
     const isInvalidSource = errMsg.includes('0xf6e2f99b');
+    const amountVal = (document.getElementById('redeem-amount-val') as HTMLInputElement)?.value || '10';
     
     if (errMsg.includes('0xba0514c0') || errMsg.toLowerCase().includes('invalidrequestid') || isInvalidSource) {
       const detailMsg = isInvalidSource
@@ -974,6 +1070,7 @@ async function runRedemptionFinalizationFlow(paymentResult: any, requestId: bigi
         : `Your redemption has been verified by FDC on-chain, and the payout transaction is confirmed.`;
       
       log(`Redemption ticket verified on-chain!`, 'success');
+      saveTxToHistory('Redeem', `${amountVal} FXRP`, paymentResult.txHash, 'Verified');
       document.getElementById('step-execute')!.className = 'step-node completed';
       
       setTimeout(async () => {
@@ -991,6 +1088,7 @@ async function runRedemptionFinalizationFlow(paymentResult: any, requestId: bigi
 
     console.error('Redemption finalization failed:', err);
     log(`Redemption finalization failed: ${errMsg}`, 'error');
+    saveTxToHistory('Redeem', `${amountVal} FXRP`, paymentResult.txHash, 'Failed');
     document.getElementById('step-execute')!.className = 'step-node failed';
   }
 }
@@ -1195,6 +1293,9 @@ async function simulatePaymentSigning() {
  * Shared status monitoring and finalization flow
  */
 async function runFinalizationFlow(paymentResult: any) {
+  // Save initial processing state in history
+  saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Processing');
+  
   await sdk.monitorStatus(paymentResult, (status) => {
     if (status.state === 'FdcRequested') {
       log(status.message, 'info');
@@ -1208,9 +1309,11 @@ async function runFinalizationFlow(paymentResult: any) {
       log(status.message, 'info');
     } else if (status.state === 'Delayed') {
       log(status.message, 'warning');
+      saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Delayed');
       handleDelayedState(status.allowedAt!);
     } else if (status.state === 'Complete') {
       log(status.message, 'success');
+      saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Complete');
       document.getElementById('step-execute')!.className = 'step-node completed';
       
       // Transition to success phase
@@ -1222,6 +1325,7 @@ async function runFinalizationFlow(paymentResult: any) {
 
     } else if (status.state === 'Failed') {
       log(status.message, 'error');
+      saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Failed');
       if (status.error) {
         console.error(status.error);
       }
@@ -1327,5 +1431,81 @@ async function queryBalances() {
     if (finalBalanceEl && activeTab === 'mint') {
       finalBalanceEl.innerText = '-- FXRP';
     }
+  }
+}
+
+/**
+ * Saves a transaction action to localStorage.
+ */
+function saveTxToHistory(type: 'Mint' | 'Redeem', amount: string, hash: string, status: string) {
+  try {
+    const history = JSON.parse(localStorage.getItem('fxrp_tx_history') || '[]');
+    // Avoid duplicates
+    if (history.some((x: any) => x.hash === hash && x.status === status)) {
+      return;
+    }
+    // Update existing or add new
+    const existingIndex = history.findIndex((x: any) => x.hash === hash);
+    if (existingIndex > -1) {
+      history[existingIndex].status = status;
+    } else {
+      history.unshift({
+        id: Math.random().toString(36).substring(2, 9),
+        type,
+        amount,
+        hash,
+        status,
+        timestamp: Date.now()
+      });
+    }
+    localStorage.setItem('fxrp_tx_history', JSON.stringify(history.slice(0, 15)));
+    renderHistoryList();
+  } catch (e) {
+    console.error('Failed to write tx history:', e);
+  }
+}
+
+/**
+ * Renders the transaction history drawer.
+ */
+function renderHistoryList() {
+  const listEl = document.getElementById('history-list');
+  if (!listEl) return;
+  try {
+    const history = JSON.parse(localStorage.getItem('fxrp_tx_history') || '[]');
+    if (history.length === 0) {
+      listEl.innerHTML = `<span style="color: var(--text-muted); text-align: center; display: block; padding: 12px 0; font-size: 10px;">No recent activities found on this device.</span>`;
+      return;
+    }
+
+    listEl.innerHTML = history.map((tx: any) => {
+      const dateStr = new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const explorerUrl = tx.hash.startsWith('0x') 
+        ? `https://coston2.explorer.flare.network/tx/${tx.hash}`
+        : `https://testnet.xrpl.org/transactions/${tx.hash}`;
+      
+      let badgeColor = 'var(--color-warning)';
+      if (tx.status === 'Complete' || tx.status === 'Confirmed' || tx.status === 'Verified') {
+        badgeColor = 'var(--color-success)';
+      } else if (tx.status === 'Failed') {
+        badgeColor = 'var(--color-error)';
+      }
+
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color); box-sizing: border-box;">
+          <div>
+            <span style="font-weight: bold; color: ${tx.type === 'Mint' ? 'var(--color-accent)' : 'var(--color-success)'}; margin-right: 4px;">${tx.type}</span>
+            <span style="color: var(--text-primary); font-weight: 500;">${tx.amount}</span>
+            <span style="color: var(--text-muted); font-size: 9px; margin-left: 6px;">${dateStr}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 10px; font-weight: 600; color: ${badgeColor};">${tx.status}</span>
+            <a href="${explorerUrl}" target="_blank" style="color: var(--color-accent); text-decoration: underline; font-size: 10px; font-weight: 500;">Link</a>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = `<span style="color: var(--color-error);">Error loading history.</span>`;
   }
 }
