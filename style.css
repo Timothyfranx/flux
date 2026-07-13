@@ -465,3 +465,13 @@ body {
   padding: 8px;
   word-break: break-all;
 }
+
+/* Tab Selector Styles */
+.tab-btn {
+  transition: all 0.15s ease;
+}
+.tab-btn:not(.active):hover {
+  color: var(--text-primary) !important;
+  opacity: 0.8;
+}
+

@@ -28,7 +28,7 @@ export async function executeXrplPaymentWithSeed(
           Memo: {
             MemoType: '46417373657473', // Hex for "FAssets"
             MemoFormat: '6170706c69636174696f6e2f6f637465742d73747265616d', // Hex for "application/octet-stream"
-            MemoData: params.memoHex,
+            MemoData: params.memoHex.startsWith('0x') ? params.memoHex.slice(2) : params.memoHex,
           },
         },
       ],
