@@ -467,11 +467,26 @@ body {
 }
 
 /* Tab Selector Styles */
+/* Tab Selector Styles */
 .tab-btn {
+  flex: 1;
+  padding: 10px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
   transition: all 0.15s ease;
 }
+.tab-btn.active {
+  border-bottom: 2px solid var(--color-accent);
+  color: var(--text-primary);
+}
 .tab-btn:not(.active):hover {
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
   opacity: 0.8;
 }
 
@@ -480,7 +495,8 @@ body {
   position: fixed;
   bottom: 90px;
   right: 24px;
-  width: 380px;
+  width: calc(100% - 48px);
+  max-width: 380px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
   z-index: 9999;
   border-radius: 12px;
@@ -530,5 +546,21 @@ body {
 
 .widget-launcher.hidden {
   display: none !important;
+}
+
+/* Responsive Customizer Grid stacking */
+@media (max-width: 920px) {
+  .sandbox-container {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  .customizer-panel {
+    width: 100% !important;
+    max-width: 680px;
+  }
+  .dashboard-container {
+    width: 100% !important;
+    max-width: 680px;
+  }
 }
 

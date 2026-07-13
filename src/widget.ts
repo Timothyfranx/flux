@@ -99,9 +99,9 @@ function mountWidget() {
           <!-- Items will be rendered here dynamically -->
         </div>
       </div>
-      <div class="tab-selector" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
-        <button class="tab-btn active" id="tab-mint" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid var(--color-accent); color: var(--text-primary); font-weight: 600; cursor: pointer; font-size: 13px;">Mint FXRP</button>
-        <button class="tab-btn" id="tab-redeem" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; font-size: 13px;">Redeem FXRP</button>
+      <div class="tab-selector" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px; box-sizing: border-box;">
+        <button class="tab-btn active" id="tab-mint">Mint FXRP</button>
+        <button class="tab-btn" id="tab-redeem">Redeem FXRP</button>
       </div>
 
       <!-- Idle / Entry Phase -->

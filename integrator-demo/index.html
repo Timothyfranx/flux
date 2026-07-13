@@ -415,12 +415,11 @@
             widget.style.setProperty('--text-muted', '#64748B');
             widget.style.setProperty('--border-color', '#E2E8F0');
           } else {
-            // Restore dark theme defaults
-            widget.style.removeProperty('--bg-primary');
-            widget.style.removeProperty('--bg-secondary');
-            widget.style.removeProperty('--text-primary');
-            widget.style.removeProperty('--text-muted');
-            widget.style.removeProperty('--border-color');
+            widget.style.setProperty('--bg-primary', '#0F172A');
+            widget.style.setProperty('--bg-secondary', '#1E293B');
+            widget.style.setProperty('--text-primary', '#F8FAFC');
+            widget.style.setProperty('--text-muted', '#94A3B8');
+            widget.style.setProperty('--border-color', '#334155');
           }
         });
       });
