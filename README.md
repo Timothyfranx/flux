@@ -81,6 +81,18 @@ await sdk.monitorStatus(paymentResult, (status) => {
 
 ---
 
+## ⛓️ Multi-Chain Support & Scaffold
+
+**FXRP Embed** is designed with multi-chain expansion in mind:
+*   **Production State (`main`):** To guarantee 100% correct execution with zero mock dependencies, the production widget on `main` focuses exclusively on **FXRP (Ripple)**, which is the only active FAsset officially deployed and registered on the Coston2 testnet.
+*   **Multi-Chain Scaffold (`feat/multichain-scaffold`):** Multi-chain onboarding workflows for **FBTC** and **FDOGE** (using FDC type `0x02` `Payment` attestations and UTXO `OP_RETURN` script generation) are under active development and prototyping on the dedicated branch:
+    ```bash
+    git checkout feat/multichain-scaffold
+    ```
+    *Note: The BTC and DOGE code paths on that branch represent unverified scaffolding, as the corresponding underlying asset managers are not currently registered or funded on the public Coston2 network.*
+
+---
+
 ## ⚡ Direct Minting & FDC Mechanics
 
 The SDK and Widget participate in the **FAssets v1.3 Direct Minting** architecture on Flare Coston2 testnet:
