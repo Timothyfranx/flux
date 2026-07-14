@@ -57,47 +57,9 @@ async function main() {
   const paymentResult = await executeXrplPaymentWithSeed(XRPL_URL, xrplSeed, paymentParams);
   console.log(`Payment successfully broadcasted! Hash: ${paymentResult.txHash}`);
 
-  // 4. Polling ledger to replicate widget payment detection
-  console.log('\n3. Starting live ledger observation (matching memo)...');
-  const xrplClient = new XrplClient(XRPL_URL);
-  await xrplClient.connect();
-
-  let detectedResult = null;
-  const maxAttempts = 12; // 2 minutes
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const response = await xrplClient.request({
-        command: "tx",
-        transaction: paymentResult.txHash,
-      });
-      const tx = response.result as any;
-      if (tx && tx.validated) {
-        detectedResult = {
-          txHash: tx.hash,
-          blockTimestamp: (tx.date || 0) + 946684800,
-          spentAmountDrops: typeof tx.Amount === 'string' ? tx.Amount : tx.Amount.value,
-          receivedAmountDrops: typeof tx.Amount === 'string' ? tx.Amount : tx.Amount.value,
-          receivingAddressXRP: paymentParams.vaultAddressXRP,
-        };
-        console.log(`  Payment validated! Ledger Close Hash: ${detectedResult.txHash}`);
-        break;
-      }
-    } catch (err) {
-      console.log('  Payment not found in ledger yet, waiting...');
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-  }
-
-  await xrplClient.disconnect();
-
-  if (!detectedResult) {
-    throw new Error('Timeout: Payment transaction was not detected on the XRPL ledger.');
-  }
-
-  // 5. Track attestation and finalization
-  console.log('\n4. Initiating FDC proof generation and Flare finalization...');
-  await sdk.monitorStatus(detectedResult, async (status) => {
+  // 4. Track attestation and finalization
+  console.log('\n3. Initiating FDC proof generation and Flare finalization...');
+  await sdk.monitorStatus(paymentResult, async (status) => {
     console.log(`[Status Event] State: ${status.state} | Message: ${status.message}`);
     
     if (status.state === 'Delayed') {

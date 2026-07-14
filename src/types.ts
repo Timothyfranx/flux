@@ -28,6 +28,7 @@ export interface PaymentParams {
   executorFeeXRP: number;
   totalXRP: number;
   memoHex: string;
+  destinationTag?: number;
 }
 
 export interface PaymentResult {

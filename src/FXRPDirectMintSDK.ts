@@ -6,6 +6,7 @@ import {
   WalletClient,
   Address,
   Hash,
+  parseEventLogs,
 } from 'viem';
 import { flareTestnet } from 'viem/chains';
 const { privateKeyToAccount } = require('viem/accounts');
@@ -35,6 +36,7 @@ export class FXRPDirectMintSDK {
   private systemsManagerAddress?: Address;
   private fdcHubAddress?: Address;
   private fdcRequestFeeConfigurationsAddress?: Address;
+  private mintingTagManagerAddress?: Address;
 
   constructor(config: FXRPDirectMintConfig) {
     this.config = config;
@@ -102,6 +104,12 @@ export class FXRPDirectMintSDK {
       address: this.fdcHubAddress,
       abi: coston2.iFdcHubAbi,
       functionName: 'fdcRequestFeeConfigurations',
+    })) as Address;
+
+    this.mintingTagManagerAddress = (await this.publicClient.readContract({
+      address: this.assetManagerAddress!,
+      abi: coston2.iAssetManagerAbi,
+      functionName: 'getMintingTagManager',
     })) as Address;
   }
 
@@ -206,6 +214,122 @@ export class FXRPDirectMintSDK {
   }
 
   /**
+   * Retrieves the MintingTagManager contract address.
+   */
+  public async getMintingTagManagerAddress(): Promise<string> {
+    await this.resolveContractAddresses();
+    return this.mintingTagManagerAddress!;
+  }
+
+  /**
+   * Queries the tag reservation fee from the MintingTagManager contract.
+   */
+  public async getReservationFee(): Promise<bigint> {
+    const address = await this.getMintingTagManagerAddress();
+    return (await this.publicClient.readContract({
+      address: address as Address,
+      abi: coston2.iMintingTagManagerAbi,
+      functionName: 'reservationFee',
+    })) as bigint;
+  }
+
+  /**
+   * Reserves a new minting tag by calling reserve() and paying the reservation fee.
+   */
+  public async reserveMintingTag(): Promise<{ tagId: bigint; txHash: string }> {
+    const address = await this.getMintingTagManagerAddress();
+    const accountParam = this.evmAccount || this.evmAccountAddress;
+    if (!this.walletClient || !accountParam) {
+      throw new Error('Wallet client or EVM account address not configured.');
+    }
+
+    const fee = await this.getReservationFee();
+
+    const txHash = await this.walletClient.writeContract({
+      address: address as Address,
+      abi: coston2.iMintingTagManagerAbi,
+      functionName: 'reserve',
+      value: fee,
+      account: accountParam,
+      chain: flareTestnet,
+    });
+
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    const logs = parseEventLogs({
+      abi: coston2.iMintingTagManagerAbi,
+      eventName: 'MintingTagReserved',
+      logs: receipt.logs,
+    });
+
+    if (!logs || logs.length === 0) {
+      throw new Error('MintingTagReserved event not found in transaction logs.');
+    }
+
+    const tagId = (logs[0] as any).args.tag as bigint;
+    return { tagId, txHash };
+  }
+
+  /**
+   * Returns all reserved tag IDs owned by the given address.
+   */
+  public async getReservedTagsForOwner(ownerAddress: string): Promise<bigint[]> {
+    const address = await this.getMintingTagManagerAddress();
+    return (await this.publicClient.readContract({
+      address: address as Address,
+      abi: coston2.iMintingTagManagerAbi,
+      functionName: 'reservedTagsForOwner',
+      args: [ownerAddress as Address],
+    })) as bigint[];
+  }
+
+  /**
+   * Prepares the parameters for a tag-based direct minting XRPL payment (numerical tag only).
+   */
+  public async prepareTagPayment(params: {
+    recipientEvmAddress: string;
+    lots: number;
+    destinationTag: number;
+  }): Promise<PaymentParams> {
+    await this.resolveContractAddresses();
+    const assetManager = this.assetManagerAddress!;
+
+    const settings = await this.getSettings();
+    if (settings.mintingPaused || settings.emergencyPaused) {
+      throw new Error('Direct minting is currently paused on-chain.');
+    }
+
+    const vaultAddressXRP = (await this.publicClient.readContract({
+      address: assetManager,
+      abi: coston2.iAssetManagerAbi,
+      functionName: 'directMintingPaymentAddress',
+    })) as string;
+
+    const amountXRP = params.lots * settings.lotSizeXRP;
+    const feeBips = settings.minterFeeShareBIPS;
+    const minimumFeeXRP = settings.minimumFeeXRP;
+
+    // Calculate percentage fee based on bips
+    const percentageFeeXRP = (amountXRP * feeBips) / 10000;
+    const calculatedFeeXRP = Math.max(percentageFeeXRP, minimumFeeXRP);
+
+    const executorFeeXRP = settings.executorFeeXRP;
+    const totalXRP = amountXRP + calculatedFeeXRP + executorFeeXRP;
+
+    return {
+      vaultAddressXRP,
+      recipientEvmAddress: params.recipientEvmAddress,
+      lots: params.lots,
+      amountXRP,
+      mintingFeeXRP: calculatedFeeXRP,
+      executorFeeXRP,
+      totalXRP,
+      memoHex: '', // No memo is used in tag-based payment
+      destinationTag: params.destinationTag,
+    };
+  }
+
+  /**
    * Prepares and submits the attestation request to FdcHub.
    */
   public async requestFdcAttestation(
@@ -219,11 +343,25 @@ export class FXRPDirectMintSDK {
 
     const txHash = paymentResult.txHash.startsWith('0x') ? paymentResult.txHash : `0x${paymentResult.txHash}`;
 
-    // 1. Fetch bytes32 prepared request
-    const requestBytes = (await prepareFdcRequestBytes({
-      transactionId: txHash,
-      receivingAddress: paymentResult.receivingAddressXRP,
-    })) as `0x${string}`;
+    // 1. Fetch bytes32 prepared request with retry loop to handle verifier indexing latency
+    let requestBytes: `0x${string}` | null = null;
+    let attempts = 0;
+    const maxAttempts = 6;
+    while (!requestBytes && attempts < maxAttempts) {
+      try {
+        requestBytes = (await prepareFdcRequestBytes({
+          transactionId: txHash,
+          receivingAddress: paymentResult.receivingAddressXRP,
+        })) as `0x${string}`;
+      } catch (err: any) {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw err;
+        }
+        console.log(`  [FDC Indexing Wait] ${err.message || err}. Retrying in 10 seconds (Attempt ${attempts}/${maxAttempts})...`);
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+      }
+    }
 
     // 2. Query fee
     const requestFee = (await this.publicClient.readContract({
@@ -238,7 +376,7 @@ export class FXRPDirectMintSDK {
         },
       ],
       functionName: 'getRequestFee',
-      args: [requestBytes],
+      args: [requestBytes!],
     })) as bigint;
 
     // 3. Write request to FdcHub
@@ -246,7 +384,7 @@ export class FXRPDirectMintSDK {
       address: this.fdcHubAddress!,
       abi: coston2.iFdcHubAbi,
       functionName: 'requestAttestation',
-      args: [requestBytes],
+      args: [requestBytes!],
       value: requestFee,
       account: accountParam,
       chain: flareTestnet,
@@ -264,7 +402,7 @@ export class FXRPDirectMintSDK {
 
     return {
       votingRoundId,
-      requestBytes,
+      requestBytes: requestBytes!,
     };
   }
 

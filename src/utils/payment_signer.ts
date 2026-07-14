@@ -18,12 +18,17 @@ export async function executeXrplPaymentWithSeed(
 
   try {
     const drops = xrpToDrops(params.totalXRP);
-    const tx = {
+    const tx: any = {
       TransactionType: 'Payment' as const,
       Account: wallet.address,
       Amount: drops,
       Destination: params.vaultAddressXRP,
-      Memos: [
+    };
+
+    if (params.destinationTag !== undefined && params.destinationTag !== null && params.destinationTag !== 0) {
+      tx.DestinationTag = params.destinationTag;
+    } else {
+      tx.Memos = [
         {
           Memo: {
             MemoType: '46417373657473', // Hex for "FAssets"
@@ -31,8 +36,8 @@ export async function executeXrplPaymentWithSeed(
             MemoData: params.memoHex.startsWith('0x') ? params.memoHex.slice(2) : params.memoHex,
           },
         },
-      ],
-    };
+      ];
+    }
 
     const prepared = await client.autofill(tx);
     const signed = wallet.sign(prepared);

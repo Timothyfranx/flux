@@ -49,8 +49,11 @@ export async function prepareFdcRequestBytes(params: PrepareRequestParams): Prom
     throw new Error(`Verifier preparation API error (${response.status}): ${errText}`);
   }
 
-  const resJson = (await response.json()) as { abiEncodedRequest: string };
-  return resJson.abiEncodedRequest;
+  const resJson = (await response.json()) as { status: string; abiEncodedRequest?: string };
+  if (resJson.status !== 'VALID') {
+    throw new Error(`Verifier returned status ${resJson.status} (expected VALID). The transaction may not be indexed by the FDC node yet.`);
+  }
+  return resJson.abiEncodedRequest!;
 }
 
 export function receivingAddressToHash(address: string): string {

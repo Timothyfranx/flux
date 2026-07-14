@@ -1,6 +1,6 @@
 import { FXRPDirectMintSDK } from './FXRPDirectMintSDK';
 import { executeXrplPaymentWithSeed } from './utils/payment_signer';
-import { createPublicClient, http, formatEther, formatUnits, createWalletClient, custom, parseEventLogs } from 'viem';
+import { createPublicClient, http, formatEther, formatUnits, createWalletClient, custom, parseEventLogs, Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { flareTestnet } from 'viem/chains';
 import { Client as XrplClient } from 'xrpl';
@@ -26,6 +26,8 @@ let evmAddress: string = '';
 let targetXRP: number = 0;
 let memoHex: string = '';
 let vaultAddressXRP: string = '';
+let routingMode: 'memo' | 'tag' = 'memo';
+let destinationTag: number | undefined;
 
 // Redemption active variables
 let activeTab: 'mint' | 'redeem' = 'mint';
@@ -148,6 +150,35 @@ function mountWidget() {
               Enter your available XRP to estimate lot conversion.
             </div>
           </div>
+
+          <!-- Routing Mode Selection -->
+          <div style="margin-top: 14px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; font-size: 11px; box-sizing: border-box;">
+            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+              <span>Routing Mode</span>
+              <div style="display: flex; gap: 4px; background: var(--bg-secondary); padding: 2px; border-radius: 6px; border: 1px solid var(--border-color);">
+                <button type="button" id="route-mode-memo" style="border: none; background: var(--bg-primary); color: var(--text-primary); padding: 4px 8px; font-size: 10px; border-radius: 4px; cursor: pointer; font-weight: 600; outline: none;">Memo-Based</button>
+                <button type="button" id="route-mode-tag" style="border: none; background: transparent; color: var(--text-muted); padding: 4px 8px; font-size: 10px; border-radius: 4px; cursor: pointer; font-weight: 600; outline: none;">Tag-Based</button>
+              </div>
+            </div>
+            
+            <div id="route-mode-memo-desc" style="color: var(--text-muted); line-height: 1.4;">
+              Encodes EVM recipient address in a 32-byte memo. Single-use and does not require any on-chain registration or fee.
+            </div>
+            
+            <div id="route-mode-tag-desc" class="hidden" style="color: var(--text-muted); line-height: 1.4; display: flex; flex-direction: column; gap: 8px;">
+              <div>Uses a reusable destination tag mapped to your EVM address. Great for repeat minting.</div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-weight: 600; color: var(--text-primary);">Your Reserved Tags:</label>
+                <select id="user-reserved-tags" style="padding: 6px; font-size: 11px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); outline: none; width: 100%; box-sizing: border-box; font-family: inherit;">
+                  <option value="">-- No tags reserved yet --</option>
+                </select>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px;">
+                <span id="tag-reserve-fee-label" style="font-size: 10px; color: var(--text-muted);">Cost: 100 C2FLR</span>
+                <button type="button" id="btn-reserve-new-tag" style="border: none; background: var(--color-accent); color: white; padding: 5px 10px; font-size: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; outline: none;">Reserve Tag</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Redeem Inputs Area (hidden by default) -->
@@ -224,16 +255,23 @@ function mountWidget() {
             <div id="pay-destination" class="wallet-address" style="font-size: 12px; margin-top: 4px; user-select: all; cursor: pointer;">--</div>
           </div>
           
-          <div class="wallet-card">
+          <div class="wallet-card" id="pay-memo-container">
             <div class="wallet-meta">
               <span class="wallet-label">Memo (Hex)</span>
             </div>
             <div id="pay-memo" class="wallet-address" style="font-size: 11px; margin-top: 4px; word-break: break-all; user-select: all; cursor: pointer;">--</div>
           </div>
+
+          <div class="wallet-card hidden" id="pay-tag-container">
+            <div class="wallet-meta">
+              <span class="wallet-label">Destination Tag</span>
+            </div>
+            <div id="pay-tag" class="wallet-address" style="font-size: 13px; font-weight: bold; margin-top: 4px; user-select: all; cursor: pointer;">--</div>
+          </div>
         </div>
 
         <div style="border: 1px solid var(--color-error); background: rgba(220, 38, 38, 0.03); border-radius: 6px; padding: 12px; font-size: 12px; color: var(--color-error); line-height: 1.4;">
-          <strong>Warning:</strong> The memo must be included exactly as shown, or the protocol cannot match the mint to your account.
+          <strong>Warning:</strong> <span id="pay-warning-text">The memo must be included exactly as shown, or the protocol cannot match the mint to your account.</span>
         </div>
 
         <!-- Testing Simulation Provider (Explicitly Isolated & Developer Only) -->
@@ -386,6 +424,9 @@ async function connectBrowserWallet(): Promise<boolean> {
 
     evmAddress = derivedAddress || '0x7bEa8C45F0cE61DF69914f5b04fa62a3D6f1E53c';
     log(`Simulated EVM wallet connected: ${evmAddress}`, 'success');
+    if (routingMode === 'tag') {
+      updateUserTagsDropdown().catch(console.error);
+    }
     return true;
   }
 
@@ -423,6 +464,9 @@ async function connectBrowserWallet(): Promise<boolean> {
     });
 
     sdk.setWalletClient(walletClient, evmAddress);
+    if (routingMode === 'tag') {
+      updateUserTagsDropdown().catch(console.error);
+    }
     return true;
   } catch (error: any) {
     console.error('Wallet connection failed:', error);
@@ -578,10 +622,26 @@ function setupEventListeners() {
         document.getElementById('phase-payment')!.classList.remove('hidden');
         
         // Calculate direct minting parameters
-        const paymentParams = await sdk.preparePayment({
-          recipientEvmAddress: evmAddress,
-          lots: currentLots,
-        });
+        let paymentParams;
+        if (routingMode === 'tag') {
+          if (!destinationTag) {
+            alert('Please select or reserve a destination tag to proceed with Tag-Based routing.');
+            // Revert state transitions
+            document.getElementById('phase-idle')!.classList.remove('hidden');
+            document.getElementById('phase-payment')!.classList.add('hidden');
+            return;
+          }
+          paymentParams = await sdk.prepareTagPayment({
+            recipientEvmAddress: evmAddress,
+            lots: currentLots,
+            destinationTag: destinationTag,
+          });
+        } else {
+          paymentParams = await sdk.preparePayment({
+            recipientEvmAddress: evmAddress,
+            lots: currentLots,
+          });
+        }
 
         targetXRP = paymentParams.totalXRP;
         memoHex = paymentParams.memoHex;
@@ -589,23 +649,41 @@ function setupEventListeners() {
 
         document.getElementById('pay-amount')!.innerText = `${targetXRP.toFixed(2)} XRP`;
         document.getElementById('pay-destination')!.innerText = vaultAddressXRP;
-        document.getElementById('pay-memo')!.innerText = memoHex;
 
-        // Render standard XRPL transaction JSON in the QR code entirely client-side
-        const txJson = {
-          TransactionType: 'Payment',
-          Destination: vaultAddressXRP,
-          Amount: Math.floor(targetXRP * 1000000).toString(), // drops
-          Memos: [
-            {
-              Memo: {
-                MemoType: '46417373657473', // "FAssets"
-                MemoFormat: '6170706c69636174696f6e2f6f637465742d73747265616d', // "application/octet-stream"
-                MemoData: memoHex
+        let txJson: any;
+        if (routingMode === 'tag') {
+          document.getElementById('pay-memo-container')!.classList.add('hidden');
+          document.getElementById('pay-tag-container')!.classList.remove('hidden');
+          document.getElementById('pay-tag')!.innerText = destinationTag!.toString();
+          document.getElementById('pay-warning-text')!.innerText = 'The destination tag must be included exactly as shown, or the protocol cannot match the mint to your account.';
+
+          txJson = {
+            TransactionType: 'Payment',
+            Destination: vaultAddressXRP,
+            Amount: Math.floor(targetXRP * 1000000).toString(), // drops
+            DestinationTag: destinationTag
+          };
+        } else {
+          document.getElementById('pay-memo-container')!.classList.remove('hidden');
+          document.getElementById('pay-tag-container')!.classList.add('hidden');
+          document.getElementById('pay-memo')!.innerText = memoHex;
+          document.getElementById('pay-warning-text')!.innerText = 'The memo must be included exactly as shown, or the protocol cannot match the mint to your account.';
+
+          txJson = {
+            TransactionType: 'Payment',
+            Destination: vaultAddressXRP,
+            Amount: Math.floor(targetXRP * 1000000).toString(), // drops
+            Memos: [
+              {
+                Memo: {
+                  MemoType: '46417373657473', // "FAssets"
+                  MemoFormat: '6170706c69636174696f6e2f6f637465742d73747265616d', // "application/octet-stream"
+                  MemoData: memoHex
+                }
               }
-            }
-          ]
-        };
+            ]
+          };
+        }
 
         const canvas = document.getElementById('wallet-qr-code-canvas') as HTMLCanvasElement;
         if (canvas) {
@@ -738,6 +816,92 @@ function setupEventListeners() {
       });
     }
   });
+
+  // Routing Mode Toggles
+  const btnRouteMemo = document.getElementById('route-mode-memo')!;
+  const btnRouteTag = document.getElementById('route-mode-tag')!;
+  const descMemo = document.getElementById('route-mode-memo-desc')!;
+  const descTag = document.getElementById('route-mode-tag-desc')!;
+
+  btnRouteMemo.addEventListener('click', () => {
+    routingMode = 'memo';
+    (btnRouteMemo as HTMLElement).style.background = 'var(--bg-primary)';
+    (btnRouteMemo as HTMLElement).style.color = 'var(--text-primary)';
+    (btnRouteTag as HTMLElement).style.background = 'transparent';
+    (btnRouteTag as HTMLElement).style.color = 'var(--text-muted)';
+    descMemo.classList.remove('hidden');
+    descTag.classList.add('hidden');
+    
+    // Reset helper text
+    document.getElementById('dynamic-helper-text')!.innerText = "You'll send XRP from your own wallet. FXRP arrives on Flare once the payment is verified — usually a few minutes.";
+    document.getElementById('dynamic-how-works-text')!.innerText = "This widget uses FAssets v1.3 direct minting. Your recipient EVM address is securely encoded inside your payment transaction memo. The Flare Data Connector (FDC) verifies the payment trustlessly, allowing FXRP to be minted to your EVM address without relying on any trusted intermediary.";
+  });
+
+  btnRouteTag.addEventListener('click', async () => {
+    routingMode = 'tag';
+    (btnRouteTag as HTMLElement).style.background = 'var(--bg-primary)';
+    (btnRouteTag as HTMLElement).style.color = 'var(--text-primary)';
+    (btnRouteMemo as HTMLElement).style.background = 'transparent';
+    (btnRouteMemo as HTMLElement).style.color = 'var(--text-muted)';
+    descMemo.classList.add('hidden');
+    descTag.classList.remove('hidden');
+
+    // Update helper text
+    document.getElementById('dynamic-helper-text')!.innerText = "You'll send XRP with a reserved Destination Tag. Reusable and mapped securely to your EVM address.";
+    document.getElementById('dynamic-how-works-text')!.innerText = "This widget uses FAssets v1.3 direct minting. Your recipient EVM address is bound to a reserved Destination Tag on Flare via the MintingTagManager contract. The Flare Data Connector (FDC) verifies your XRP payment with this tag, and the protocol mints FXRP directly to your bound recipient address.";
+
+    // If EVM wallet is connected, fetch tags
+    if (evmAddress) {
+      await updateUserTagsDropdown();
+    }
+  });
+
+  // Tag dropdown change
+  const dropdownTags = document.getElementById('user-reserved-tags') as HTMLSelectElement;
+  dropdownTags.addEventListener('change', () => {
+    const val = dropdownTags.value;
+    if (val) {
+      destinationTag = Number(val);
+    } else {
+      destinationTag = undefined;
+    }
+  });
+
+  // Reserve tag button
+  const btnReserveTag = document.getElementById('btn-reserve-new-tag')!;
+  btnReserveTag.addEventListener('click', async () => {
+    const connected = await connectBrowserWallet();
+    if (!connected) return;
+    
+    (btnReserveTag as HTMLButtonElement).innerText = 'Reserving...';
+    btnReserveTag.setAttribute('disabled', 'true');
+    
+    try {
+      // Connect custom wallet client if available
+      if ((window as any).ethereum) {
+        const publicClient = createPublicClient({ transport: http(FLARE_RPC_URL) });
+        const walletClient = createWalletClient({
+          account: evmAddress as Address,
+          chain: flareTestnet,
+          transport: custom((window as any).ethereum)
+        });
+        sdk.setWalletClient(walletClient, evmAddress);
+      }
+      
+      const { tagId, txHash } = await sdk.reserveMintingTag();
+      alert(`Tag ${tagId} reserved successfully! Tx Hash: ${txHash}`);
+      
+      await updateUserTagsDropdown();
+      dropdownTags.value = tagId.toString();
+      destinationTag = Number(tagId);
+    } catch (err: any) {
+      console.error(err);
+      alert(`Tag reservation failed: ${err.message || err}`);
+    } finally {
+      (btnReserveTag as HTMLButtonElement).innerText = 'Reserve Tag';
+      btnReserveTag.removeAttribute('disabled');
+    }
+  });
 }
 
 /**
@@ -770,12 +934,17 @@ async function startRealPaymentDetection() {
         if (!tx) continue;
 
         if (tx.TransactionType === 'Payment' && tx.Destination === vaultAddressXRP) {
-          const memos = tx.Memos || [];
-          const hasMatchingMemo = memos.some((m: any) => {
-            return m.Memo?.MemoData?.toUpperCase() === memoHex.toUpperCase();
-          });
+          let isMatching = false;
+          if (routingMode === 'tag') {
+            isMatching = Number(tx.DestinationTag) === destinationTag;
+          } else {
+            const memos = tx.Memos || [];
+            isMatching = memos.some((m: any) => {
+              return m.Memo?.MemoData?.toUpperCase() === memoHex.toUpperCase();
+            });
+          }
 
-          if (hasMatchingMemo) {
+          if (isMatching) {
             // Matching payment detected!
             clearInterval(paymentPollInterval);
             paymentPollInterval = null;
@@ -1257,6 +1426,7 @@ async function simulatePaymentSigning() {
       executorFeeXRP: executorFeeXRP,
       totalXRP: targetXRP,
       memoHex: memoHex,
+      destinationTag: routingMode === 'tag' ? destinationTag : undefined,
     };
 
     log(`Prepared transaction: Destination = ${vaultAddressXRP}, Amount = ${targetXRP} XRP`);
@@ -1431,6 +1601,35 @@ async function queryBalances() {
     if (finalBalanceEl && activeTab === 'mint') {
       finalBalanceEl.innerText = '-- FXRP';
     }
+  }
+}
+
+async function updateUserTagsDropdown() {
+  const dropdown = document.getElementById('user-reserved-tags') as HTMLSelectElement;
+  if (!dropdown) return;
+  
+  dropdown.innerHTML = '<option value="">-- Fetching tags... --</option>';
+  
+  try {
+    const tags = await sdk.getReservedTagsForOwner(evmAddress);
+    dropdown.innerHTML = '';
+    if (tags.length === 0) {
+      dropdown.innerHTML = '<option value="">-- No tags reserved yet --</option>';
+      destinationTag = undefined;
+    } else {
+      tags.forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag.toString();
+        opt.innerText = `Tag ID: ${tag.toString()}`;
+        dropdown.appendChild(opt);
+      });
+      // Default to first tag
+      dropdown.value = tags[0].toString();
+      destinationTag = Number(tags[0]);
+    }
+  } catch (err) {
+    console.error('Failed to update tags dropdown:', err);
+    dropdown.innerHTML = '<option value="">-- Error fetching tags --</option>';
   }
 }
 
