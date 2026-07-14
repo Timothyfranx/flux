@@ -25,7 +25,7 @@ export async function executeXrplPaymentWithSeed(
       Destination: params.vaultAddressXRP,
     };
 
-    if (params.destinationTag !== undefined && params.destinationTag !== null && params.destinationTag !== 0) {
+    if (params.destinationTag !== undefined && params.destinationTag !== null) {
       tx.DestinationTag = params.destinationTag;
     } else {
       tx.Memos = [

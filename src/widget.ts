@@ -624,7 +624,7 @@ function setupEventListeners() {
         // Calculate direct minting parameters
         let paymentParams;
         if (routingMode === 'tag') {
-          if (!destinationTag) {
+          if (destinationTag === undefined || destinationTag === null) {
             alert('Please select or reserve a destination tag to proceed with Tag-Based routing.');
             // Revert state transitions
             document.getElementById('phase-idle')!.classList.remove('hidden');
