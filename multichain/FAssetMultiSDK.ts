@@ -89,11 +89,11 @@ export class FAssetMultiSDK {
    * Resolves the AssetManager address dynamically from FlareContractRegistry by name.
    */
   public async getAssetManagerAddress(asset: 'XRP' | 'BTC' | 'DOGE'): Promise<string> {
-    const assetManagerName = `AssetManager${asset}`;
+    const assetManagerName = `AssetManagerF${asset}`;
     try {
       const address = (await this.publicClient.readContract({
         address: this.registryAddress as `0x${string}`,
-        abi: coston2.flareContractRegistryAbi,
+        abi: coston2.iFlareContractRegistryAbi,
         functionName: 'getContractAddressByName',
         args: [assetManagerName],
       })) as string;
@@ -383,7 +383,7 @@ export class FAssetMultiSDK {
   private async getContractAddressByName(name: string): Promise<string> {
     return (await this.publicClient.readContract({
       address: this.registryAddress as `0x${string}`,
-      abi: coston2.flareContractRegistryAbi,
+      abi: coston2.iFlareContractRegistryAbi,
       functionName: 'getContractAddressByName',
       args: [name],
     })) as string;
