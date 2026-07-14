@@ -1,4 +1,4 @@
-import { FXRPDirectMintSDK } from './FXRPDirectMintSDK';
+import { FAssetMultiSDK } from './FAssetMultiSDK';
 import { executeXrplPaymentWithSeed } from './utils/payment_signer';
 import { createPublicClient, http, formatEther, formatUnits, createWalletClient, custom, parseEventLogs } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -14,12 +14,13 @@ const FLARE_RPC_URL = 'https://coston2-api.flare.network/ext/C/rpc';
 
 const coston2 = require('@flarenetwork/flare-wagmi-periphery-package').coston2;
 
-let sdk: FXRPDirectMintSDK;
+let sdk: FAssetMultiSDK;
+let activeAsset: 'XRP' | 'BTC' | 'DOGE' = 'XRP';
 let currentLots = 1;
-let lotSizeXRP = 10;
+let lotSizeUnderlying = 10;
 let minterFeeShareBIPS = 10; // 0.1%
-let executorFeeXRP = 0.1;
-let minimumFeeXRP = 0.1;
+let executorFeeUnderlying = 0.1;
+let minimumFeeUnderlying = 0.1;
 
 // Active variables
 let evmAddress: string = '';
@@ -81,7 +82,13 @@ function mountWidget() {
     <main class="mint-card">
       <header class="dashboard-header" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
         <div class="logo-container">
-          <h1 id="widget-main-title" style="margin: 0; font-size: 16px; font-weight: bold; color: var(--text-primary);">FXRP Onboard Portal</h1>
+          <h1 id="widget-main-title" style="margin: 0; font-size: 15px; font-weight: bold; color: var(--text-primary); display: flex; align-items: center; gap: 4px;">
+            <select id="widget-asset-selector" style="background: none; border: none; font-size: 15px; font-weight: bold; color: var(--text-primary); cursor: pointer; outline: none; font-family: inherit; padding: 0; margin: 0;">
+              <option value="XRP" ${activeAsset === 'XRP' ? 'selected' : ''} style="background: var(--bg-secondary); color: var(--text-primary);">FXRP Portal</option>
+              <option value="BTC" ${activeAsset === 'BTC' ? 'selected' : ''} style="background: var(--bg-secondary); color: var(--text-primary);">FBTC Portal</option>
+              <option value="DOGE" ${activeAsset === 'DOGE' ? 'selected' : ''} style="background: var(--bg-secondary); color: var(--text-primary);">FDOGE Portal</option>
+            </select>
+          </h1>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <button id="btn-tx-history" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px; display: flex; align-items: center;" title="View Transaction History">🕒</button>
@@ -109,7 +116,7 @@ function mountWidget() {
         <!-- Mint Inputs Area -->
         <div id="mint-inputs-container">
           <div class="form-group">
-            <label class="form-label" for="lot-count">Amount (Lots - 10 XRP each)</label>
+            <label class="form-label" id="label-lot-count" for="lot-count">Amount (Lots - 10 XRP each)</label>
             <div class="lot-incrementer">
               <button type="button" class="lot-btn" id="lot-dec">-</button>
               <div class="lot-value" id="lot-count-value">1</div>
@@ -229,6 +236,14 @@ function mountWidget() {
               <span class="wallet-label">Memo (Hex)</span>
             </div>
             <div id="pay-memo" class="wallet-address" style="font-size: 11px; margin-top: 4px; word-break: break-all; user-select: all; cursor: pointer;">--</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; text-align: left; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; box-sizing: border-box; margin-bottom: 14px;">
+          <label style="font-size: 11px; font-weight: bold; color: var(--text-primary); display: block; margin-bottom: 6px;">Paid manually? Track transaction hash:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="manual-tx-hash" placeholder="Enter transaction hash..." style="flex: 1; padding: 8px; font-size: 11px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); outline: none; font-family: inherit;" />
+            <button type="button" id="btn-track-manual" style="padding: 8px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; background: var(--color-accent); color: #ffffff; cursor: pointer; transition: opacity 0.15s ease;">Track</button>
           </div>
         </div>
 
@@ -457,24 +472,37 @@ async function initializeWidget() {
   if (!mountWidget()) return;
 
   // Initialize main SDK (without seed or private key! Non-custodial!)
-  sdk = new FXRPDirectMintSDK({
-    xrplUrl: XRPL_URL,
+  sdk = new FAssetMultiSDK({
     flareRpcUrl: FLARE_RPC_URL,
     registryAddress: REGISTRY_ADDRESS,
   });
 
   try {
-    const settings = await sdk.getSettings();
-    lotSizeXRP = settings.lotSizeXRP;
-    minterFeeShareBIPS = settings.minterFeeShareBIPS;
-    executorFeeXRP = settings.executorFeeXRP;
-    minimumFeeXRP = settings.minimumFeeXRP;
-
+    await loadAssetSettings(activeAsset);
     setupEventListeners();
-    updateFeeBreakdown();
-
   } catch (error: any) {
     console.error('Settings initialization failed:', error);
+  }
+}
+
+/**
+ * Loads the dynamic lot size, minter fee share, and executor fee parameters per asset from FDC.
+ */
+async function loadAssetSettings(asset: 'XRP' | 'BTC' | 'DOGE') {
+  try {
+    const settings = await sdk.getSettings(asset);
+    const decimalsMultiplier = asset === 'BTC' ? 100000000 : 1000000;
+    lotSizeUnderlying = Number(settings.lotSize) / decimalsMultiplier;
+    minterFeeShareBIPS = settings.minterFeeShareBIPS;
+    executorFeeUnderlying = Number(settings.executorFee) / decimalsMultiplier;
+    minimumFeeUnderlying = Number(settings.minimumFee) / decimalsMultiplier;
+    updateFeeBreakdown();
+  } catch (error: any) {
+    console.warn(`Settings loading failed for ${asset}: ${error.message}`);
+    const feeTotalEl = document.getElementById('fee-total');
+    if (feeTotalEl) {
+      feeTotalEl.innerHTML = `<span style="color: var(--color-error); font-size: 10px; font-weight: 500;">Asset Manager not registered.</span>`;
+    }
   }
 }
 
@@ -482,21 +510,46 @@ async function initializeWidget() {
  * Updates the calculated fee card in the UI based on lots.
  */
 function updateFeeBreakdown() {
-  const amountXRP = currentLots * lotSizeXRP;
-  const percentageFee = (amountXRP * minterFeeShareBIPS) / 10000;
-  const calculatedFeeXRP = Math.max(percentageFee, minimumFeeXRP);
-  const totalXRP = amountXRP + calculatedFeeXRP + executorFeeXRP;
+  const symbol = activeAsset;
+  const amount = currentLots * lotSizeUnderlying;
+  const percentageFee = (amount * minterFeeShareBIPS) / 10000;
+  const calculatedFee = Math.max(percentageFee, minimumFeeUnderlying);
+  const total = amount + calculatedFee + executorFeeUnderlying;
 
-  document.getElementById('fee-amount')!.innerText = `${amountXRP.toFixed(1)} XRP`;
-  document.getElementById('fee-mint')!.innerText = `${calculatedFeeXRP.toFixed(2)} XRP`;
-  document.getElementById('fee-exec')!.innerText = `${executorFeeXRP.toFixed(2)} XRP`;
-  document.getElementById('fee-total')!.innerText = `${totalXRP.toFixed(2)} XRP`;
+  const decimals = activeAsset === 'BTC' ? 5 : 2;
+
+  document.getElementById('fee-amount')!.innerText = `${amount.toFixed(activeAsset === 'BTC' ? 4 : 1)} ${symbol}`;
+  document.getElementById('fee-mint')!.innerText = `${calculatedFee.toFixed(decimals)} ${symbol}`;
+  document.getElementById('fee-exec')!.innerText = `${executorFeeUnderlying.toFixed(decimals)} ${symbol}`;
+  document.getElementById('fee-total')!.innerText = `${total.toFixed(decimals)} ${symbol}`;
 }
 
 /**
  * Sets up event listeners for inputs and actions.
  */
 function setupEventListeners() {
+  const assetSelector = document.getElementById('widget-asset-selector') as HTMLSelectElement;
+  assetSelector?.addEventListener('change', async () => {
+    activeAsset = assetSelector.value as 'XRP' | 'BTC' | 'DOGE';
+    
+    // Update lot count label
+    const labelLotCount = document.getElementById('label-lot-count');
+    if (labelLotCount) {
+      if (activeAsset === 'XRP') labelLotCount.innerText = 'Amount (Lots - 10 XRP each)';
+      else if (activeAsset === 'BTC') labelLotCount.innerText = 'Amount (Lots - 1 BTC each)';
+      else if (activeAsset === 'DOGE') labelLotCount.innerText = 'Amount (Lots - 100 DOGE each)';
+    }
+
+    // Update Tab labels
+    const tabMintEl = document.getElementById('tab-mint');
+    const tabRedeemEl = document.getElementById('tab-redeem');
+    if (tabMintEl) tabMintEl.innerText = `Mint F${activeAsset}`;
+    if (tabRedeemEl) tabRedeemEl.innerText = `Redeem F${activeAsset}`;
+
+    // Reload settings and recalculate
+    await loadAssetSettings(activeAsset);
+  });
+
   const lotDecBtn = document.getElementById('lot-dec')!;
   const lotIncBtn = document.getElementById('lot-inc')!;
   const lotCountValEl = document.getElementById('lot-count-value')!;
@@ -578,44 +631,56 @@ function setupEventListeners() {
         document.getElementById('phase-payment')!.classList.remove('hidden');
         
         // Calculate direct minting parameters
-        const paymentParams = await sdk.preparePayment({
+        const paymentParams = await sdk.preparePayment(activeAsset, {
           recipientEvmAddress: evmAddress,
           lots: currentLots,
         });
 
-        targetXRP = paymentParams.totalXRP;
-        memoHex = paymentParams.memoHex;
-        vaultAddressXRP = paymentParams.vaultAddressXRP;
+        targetXRP = paymentParams.totalRequiredUnderlying;
+        memoHex = paymentParams.memoPayload;
+        vaultAddressXRP = paymentParams.gatewayAddress;
 
-        document.getElementById('pay-amount')!.innerText = `${targetXRP.toFixed(2)} XRP`;
+        const decimals = activeAsset === 'BTC' ? 5 : 2;
+        document.getElementById('pay-amount')!.innerText = `${targetXRP.toFixed(decimals)} ${activeAsset}`;
         document.getElementById('pay-destination')!.innerText = vaultAddressXRP;
         document.getElementById('pay-memo')!.innerText = memoHex;
 
-        // Render standard XRPL transaction JSON in the QR code entirely client-side
-        const txJson = {
-          TransactionType: 'Payment',
-          Destination: vaultAddressXRP,
-          Amount: Math.floor(targetXRP * 1000000).toString(), // drops
-          Memos: [
-            {
-              Memo: {
-                MemoType: '46417373657473', // "FAssets"
-                MemoFormat: '6170706c69636174696f6e2f6f637465742d73747265616d', // "application/octet-stream"
-                MemoData: memoHex
+        let qrPayload = '';
+        if (activeAsset === 'XRP') {
+          const txJson = {
+            TransactionType: 'Payment',
+            Destination: vaultAddressXRP,
+            Amount: Math.floor(targetXRP * 1000000).toString(), // drops
+            Memos: [
+              {
+                Memo: {
+                  MemoType: '46417373657473', // "FAssets"
+                  MemoFormat: '6170706c69636174696f6e2f6f637465742d73747265616d', // "application/octet-stream"
+                  MemoData: memoHex
+                }
               }
-            }
-          ]
-        };
+            ]
+          };
+          qrPayload = JSON.stringify(txJson);
+        } else {
+          // BTC or DOGE standard BIP-21 URI
+          const scheme = activeAsset === 'BTC' ? 'bitcoin' : 'dogecoin';
+          qrPayload = `${scheme}:${vaultAddressXRP}?amount=${targetXRP}&message=FAssets:${memoHex}`;
+        }
 
         const canvas = document.getElementById('wallet-qr-code-canvas') as HTMLCanvasElement;
         if (canvas) {
-          QRCode.toCanvas(canvas, JSON.stringify(txJson), { width: 220, margin: 1 }, (err) => {
+          QRCode.toCanvas(canvas, qrPayload, { width: 220, margin: 1 }, (err) => {
             if (err) console.error('Error generating QR code client-side:', err);
           });
         }
 
-        // Start observing the XRPL ledger for the incoming payment from a real user
-        startRealPaymentDetection();
+        // Start observing for incoming payment
+        if (activeAsset === 'XRP') {
+          startRealPaymentDetection();
+        } else {
+          log(`BIP-21 URI generated for ${activeAsset}. Paste transaction hash to track manually.`, 'info');
+        }
       } else {
         // Redemption path
         const valInput = document.getElementById('redeem-amount-val') as HTMLInputElement;
@@ -657,6 +722,33 @@ function setupEventListeners() {
     } else {
       simulateAgentPayout();
     }
+  });
+
+  // Manual transaction tracking
+  document.getElementById('btn-track-manual')!.addEventListener('click', async () => {
+    const input = document.getElementById('manual-tx-hash') as HTMLInputElement;
+    const txHash = input.value.trim();
+    if (!txHash) {
+      alert('Please enter a valid transaction hash.');
+      return;
+    }
+
+    if (paymentPollInterval) {
+      clearInterval(paymentPollInterval);
+      paymentPollInterval = null;
+    }
+
+    document.getElementById('phase-payment')!.classList.add('hidden');
+    document.getElementById('phase-tracker')!.classList.remove('hidden');
+
+    document.getElementById('step-pay')!.className = 'step-node completed';
+    document.getElementById('step-fdc')!.className = 'step-node active';
+    log(`Tracking transaction manually: ${txHash}`, 'info');
+
+    await runFinalizationFlow({
+      txHash,
+      blockTimestamp: Math.floor(Date.now() / 1000)
+    });
   });
 
   // Reset/Continue button on success
@@ -1294,9 +1386,10 @@ async function simulatePaymentSigning() {
  */
 async function runFinalizationFlow(paymentResult: any) {
   // Save initial processing state in history
-  saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Processing');
+  const tokenSymbol = `F${activeAsset}`;
+  saveTxToHistory('Mint', `${currentLots * lotSizeUnderlying} ${tokenSymbol}`, paymentResult.txHash, 'Processing');
   
-  await sdk.monitorStatus(paymentResult, (status) => {
+  await sdk.monitorStatus(activeAsset, paymentResult, (status) => {
     if (status.state === 'FdcRequested') {
       log(status.message, 'info');
       document.getElementById('step-fdc')!.className = 'step-node completed';
@@ -1309,11 +1402,11 @@ async function runFinalizationFlow(paymentResult: any) {
       log(status.message, 'info');
     } else if (status.state === 'Delayed') {
       log(status.message, 'warning');
-      saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Delayed');
+      saveTxToHistory('Mint', `${currentLots * lotSizeUnderlying} ${tokenSymbol}`, paymentResult.txHash, 'Delayed');
       handleDelayedState(status.allowedAt!);
     } else if (status.state === 'Complete') {
       log(status.message, 'success');
-      saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Complete');
+      saveTxToHistory('Mint', `${currentLots * lotSizeUnderlying} ${tokenSymbol}`, paymentResult.txHash, 'Complete');
       document.getElementById('step-execute')!.className = 'step-node completed';
       
       // Transition to success phase
@@ -1325,7 +1418,7 @@ async function runFinalizationFlow(paymentResult: any) {
 
     } else if (status.state === 'Failed') {
       log(status.message, 'error');
-      saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Failed');
+      saveTxToHistory('Mint', `${currentLots * lotSizeUnderlying} ${tokenSymbol}`, paymentResult.txHash, 'Failed');
       if (status.error) {
         console.error(status.error);
       }
