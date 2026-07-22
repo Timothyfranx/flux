@@ -213,12 +213,29 @@ function mountWidget() {
           <span id="dynamic-helper-text">You'll send XRP from your own wallet. FXRP arrives on Flare once the payment is verified — usually a few minutes.</span>
         </p>
 
-        <a href="#" id="how-works-link" style="font-size: 12px; color: var(--color-accent); text-decoration: none; font-weight: 500; align-self: flex-start; margin-top: 4px;">
-          How this works
-        </a>
+        <div style="display: flex; gap: 12px; margin-top: 6px;">
+          <a href="#" id="how-works-link" style="font-size: 12px; color: var(--color-accent); text-decoration: none; font-weight: 500;">
+            How this works
+          </a>
+          <span style="font-size: 12px; color: var(--text-muted);">•</span>
+          <a href="#" id="recover-mint-link" style="font-size: 12px; color: var(--color-accent); text-decoration: none; font-weight: 500;">
+            Stuck Payment / Recover Mint
+          </a>
+        </div>
         
         <div id="how-works-content" class="hidden" style="font-size: 12px; color: var(--text-muted); border-left: 2px solid var(--border-color); padding-left: 10px; margin-top: 8px; line-height: 1.4;">
           <span id="dynamic-how-works-text">This widget uses FAssets v1.3 direct minting. Your recipient EVM address is securely encoded inside your payment transaction memo. The Flare Data Connector (FDC) verifies the payment trustlessly, allowing FXRP to be minted to your EVM address without relying on any trusted intermediary.</span>
+        </div>
+
+        <div id="recover-mint-panel" class="hidden" style="font-size: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-top: 8px;">
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">🛠️ Recover Pending XRP Payment</div>
+          <div style="color: var(--text-muted); font-size: 11px; margin-bottom: 8px; line-height: 1.4;">
+            If you already sent an XRP payment on-chain and your session interrupted, paste your XRPL Transaction Hash below to resume FDC proof generation and claim your FXRP tokens.
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <input type="text" id="recover-tx-hash-input" placeholder="XRPL Tx Hash (e.g. 309DF8DEE9...)" style="padding: 8px; font-size: 11px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); outline: none; font-family: inherit; width: 100%; box-sizing: border-box;" />
+            <button type="button" id="btn-submit-recover" style="border: none; background: var(--color-accent); color: white; padding: 8px; font-size: 11px; border-radius: 6px; cursor: pointer; font-weight: 600;">Verify & Claim FXRP</button>
+          </div>
         </div>
 
         <button type="button" class="action-btn" id="btn-initialize-mint" style="margin-top: 16px;">
@@ -238,6 +255,14 @@ function mountWidget() {
         <!-- Real Wallet QR code generated fully client-side -->
         <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary);">
           <canvas id="wallet-qr-code-canvas" style="width: 220px; height: 220px; border: 1px solid var(--border-color); border-radius: 4px; background: white;"></canvas>
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <a id="btn-xaman-deeplink" href="#" target="_blank" style="flex: 1; text-align: center; background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 6px 10px; font-size: 11px; border-radius: 6px; text-decoration: none; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;">
+              <span>📱</span> Open in Xaman Wallet
+            </a>
+            <button id="btn-copy-payment-details" type="button" style="border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); padding: 6px 10px; font-size: 11px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+              📋 Copy
+            </button>
+          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -364,10 +389,18 @@ function mountWidget() {
           </div>
         </div>
 
-        <button type="button" class="action-btn" id="btn-complete-continue" style="margin-top: 12px; width: 100%;">
-          Continue
-        </button>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button type="button" id="btn-download-receipt" style="flex: 1; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); padding: 10px; font-size: 12px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            📥 Download Receipt
+          </button>
+          <button type="button" class="action-btn" id="btn-complete-continue" style="flex: 1; margin: 0;">
+            Continue
+          </button>
+        </div>
       </section>
+
+      <!-- Toast Notification Container -->
+      <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none;"></div>
     </main>
   `;
 
@@ -424,6 +457,7 @@ async function connectBrowserWallet(): Promise<boolean> {
 
     evmAddress = derivedAddress || '0x7bEa8C45F0cE61DF69914f5b04fa62a3D6f1E53c';
     log(`Simulated EVM wallet connected: ${evmAddress}`, 'success');
+    emitWidgetEvent('fxrp:connected', { address: evmAddress });
     if (routingMode === 'tag') {
       updateUserTagsDropdown().catch(console.error);
     }
@@ -464,6 +498,7 @@ async function connectBrowserWallet(): Promise<boolean> {
     });
 
     sdk.setWalletClient(walletClient, evmAddress);
+    emitWidgetEvent('fxrp:connected', { address: evmAddress });
     if (routingMode === 'tag') {
       updateUserTagsDropdown().catch(console.error);
     }
@@ -479,6 +514,43 @@ async function connectBrowserWallet(): Promise<boolean> {
     }
     return false;
   }
+}
+
+let lastCompletedReceipt: any = null;
+
+/**
+ * Emits custom events for host dApps (postMessage & DOM CustomEvents)
+ */
+function emitWidgetEvent(eventName: string, detail: any) {
+  try {
+    const customEvent = new CustomEvent(eventName, { detail, bubbles: true, composed: true });
+    window.dispatchEvent(customEvent);
+    document.dispatchEvent(customEvent);
+
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: eventName, detail }, '*');
+    }
+  } catch (e) {}
+}
+
+/**
+ * Displays floating toast notifications inside the widget.
+ */
+function showToast(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  const bg = type === 'success' ? '#16a34a' : type === 'error' ? '#dc2626' : type === 'warning' ? '#d97706' : '#2563eb';
+  toast.style.cssText = `background: ${bg}; color: white; padding: 8px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.15); pointer-events: auto; font-family: system-ui, sans-serif; transition: all 0.2s ease;`;
+  toast.innerText = msg;
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
 }
 
 /**
@@ -692,6 +764,20 @@ function setupEventListeners() {
           });
         }
 
+        const deepLinkBtn = document.getElementById('btn-xaman-deeplink') as HTMLAnchorElement;
+        if (deepLinkBtn) {
+          const encodedPayload = encodeURIComponent(JSON.stringify(txJson));
+          deepLinkBtn.href = `https://xumm.app/detect/xapp:xumm.tx?payload=${encodedPayload}`;
+        }
+
+        emitWidgetEvent('fxrp:mint-started', {
+          routingMode,
+          totalXRP: targetXRP,
+          vaultAddressXRP,
+          memoHex: routingMode === 'memo' ? memoHex : undefined,
+          destinationTag: routingMode === 'tag' ? destinationTag : undefined,
+        });
+
         // Start observing the XRPL ledger for the incoming payment from a real user
         startRealPaymentDetection();
       } else {
@@ -902,6 +988,106 @@ function setupEventListeners() {
       btnReserveTag.removeAttribute('disabled');
     }
   });
+
+  // Recover Pending Mint toggle
+  const recoverLink = document.getElementById('recover-mint-link');
+  const recoverPanel = document.getElementById('recover-mint-panel');
+  recoverLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    recoverPanel?.classList.toggle('hidden');
+  });
+
+  // Submit Recover Action
+  const btnSubmitRecover = document.getElementById('btn-submit-recover');
+  btnSubmitRecover?.addEventListener('click', async () => {
+    const input = document.getElementById('recover-tx-hash-input') as HTMLInputElement;
+    const rawTxHash = input ? input.value.trim() : '';
+
+    if (!rawTxHash || rawTxHash.length < 50) {
+      alert('Please enter a valid XRPL transaction hash.');
+      return;
+    }
+
+    const connected = await connectBrowserWallet();
+    if (!connected) return;
+
+    showToast('Fetching XRPL transaction details...', 'info');
+    emitWidgetEvent('fxrp:recovery-started', { txHash: rawTxHash });
+
+    try {
+      const client = new XrplClient(XRPL_URL);
+      await client.connect();
+
+      const response = await client.request({
+        command: 'tx',
+        transaction: rawTxHash,
+      });
+      await client.disconnect();
+
+      const tx = response.result as any;
+      if (!tx || !tx.validated) {
+        throw new Error('Transaction was not found or is not yet validated on XRPL.');
+      }
+
+      const paymentResult = {
+        txHash: tx.hash!,
+        blockTimestamp: (tx.date || 0) + 946684800,
+        spentAmountDrops: typeof tx.Amount === 'string' ? tx.Amount : (tx.Amount as any).value,
+        receivedAmountDrops: typeof tx.Amount === 'string' ? tx.Amount : (tx.Amount as any).value,
+        receivingAddressXRP: tx.Destination || vaultAddressXRP || 'rDhpmiPq4BVBDWMVdSrmkgt8thKyRzGV1p',
+      };
+
+      // Transition to tracker
+      document.getElementById('phase-idle')!.classList.add('hidden');
+      document.getElementById('phase-tracker')!.classList.remove('hidden');
+
+      updateTechnicalDetails(evmAddress, paymentResult.txHash);
+      document.getElementById('step-pay')!.className = 'step-node completed';
+      document.getElementById('step-fdc')!.className = 'step-node active';
+
+      showToast('XRP Payment found! Starting FDC proof generation...', 'success');
+      await runFinalizationFlow(paymentResult);
+    } catch (err: any) {
+      console.error('Recovery failed:', err);
+      alert(`Recovery failed: ${err.message || err}`);
+      showToast(`Recovery error: ${err.message || err}`, 'error');
+    }
+  });
+
+  // Copy Payment Details button
+  const btnCopyDetails = document.getElementById('btn-copy-payment-details');
+  btnCopyDetails?.addEventListener('click', async () => {
+    const details = {
+      Destination: vaultAddressXRP,
+      AmountXRP: targetXRP,
+      RoutingMode: routingMode,
+      MemoHex: routingMode === 'memo' ? memoHex : undefined,
+      DestinationTag: routingMode === 'tag' ? destinationTag : undefined,
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(details, null, 2));
+      showToast('📋 Payment details copied to clipboard!', 'success');
+    } catch (err) {
+      showToast('Failed to copy to clipboard', 'error');
+    }
+  });
+
+  // Download Receipt button
+  const btnDownloadReceipt = document.getElementById('btn-download-receipt');
+  btnDownloadReceipt?.addEventListener('click', () => {
+    if (!lastCompletedReceipt) {
+      showToast('No receipt available to download', 'warning');
+      return;
+    }
+    const blob = new Blob([JSON.stringify(lastCompletedReceipt, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fxrp-mint-receipt-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📥 Receipt downloaded!', 'success');
+  });
 }
 
 /**
@@ -989,6 +1175,8 @@ async function requestRedemption(amountFXRP: number, xrpAddress: string): Promis
   const amountUBA = BigInt(amountFXRP * 1e6); // XRP has 6 decimals
   const assetManagerAddress = sdk['assetManagerAddress'] || REGISTRY_ADDRESS;
 
+  emitWidgetEvent('fxrp:redeem-started', { amountFXRP, xrpAddress });
+
   // Resolve fAsset Address
   const publicClient = createPublicClient({ transport: http(FLARE_RPC_URL) });
 
@@ -1044,7 +1232,8 @@ async function requestRedemption(amountFXRP: number, xrpAddress: string): Promis
     }) as bigint;
 
     if (allowance < amountUBA) {
-      log(`Approving AssetManager to burn FXRP...`, 'warning');
+      log(`Approving AssetManager to spend ${amountFXRP} FXRP...`, 'info');
+      showToast('Approving FXRP token spend...', 'info');
       const approveTx = await walletClient.writeContract({
         address: fAssetAddress,
         abi: erc20Abi,
@@ -1055,10 +1244,11 @@ async function requestRedemption(amountFXRP: number, xrpAddress: string): Promis
       });
       log(`Approve transaction submitted: ${approveTx}. Waiting for confirmation...`, 'info');
       await publicClient.waitForTransactionReceipt({ hash: approveTx });
-      log(`Allowance approved successfully!`, 'success');
+      log(`Approval confirmed!`, 'success');
+      showToast('Approval confirmed!', 'success');
     }
 
-    log(`Submitting redemption request for ${amountFXRP} FXRP...`, 'info');
+    log(`Submitting redeem transaction for ${amountFXRP} FXRP...`, 'info');
     const redeemTx = await walletClient.writeContract({
       address: assetManagerAddress as `0x${string}`,
       abi: coston2.iAssetManagerAbi,
@@ -1086,6 +1276,8 @@ async function requestRedemption(amountFXRP: number, xrpAddress: string): Promis
       redemptionAddressXRP = xrpAddress;
 
       log(`Redemption Requested! ID: ${redemptionId} | Reference: ${redemptionReference}`, 'success');
+      emitWidgetEvent('fxrp:redeem-requested', { redemptionId, redemptionReference, xrpAddress });
+      showToast('Redemption ticket requested on-chain!', 'success');
 
       // Setup tracking views
       setupRedemptionTracker(redemptionId, redemptionReference, xrpAddress);
@@ -1099,6 +1291,8 @@ async function requestRedemption(amountFXRP: number, xrpAddress: string): Promis
   } catch (err: any) {
     console.error('Redemption failed:', err);
     log(`Redemption failed: ${err.message || err}`, 'error');
+    emitWidgetEvent('fxrp:redeem-failed', { error: err.message || err });
+    showToast(`Redemption failed: ${err.message || err}`, 'error');
     alert(`Redemption failed: ${err.message || err}`);
     return false;
   }
@@ -1469,20 +1663,35 @@ async function runFinalizationFlow(paymentResult: any) {
   await sdk.monitorStatus(paymentResult, (status) => {
     if (status.state === 'FdcRequested') {
       log(status.message, 'info');
+      emitWidgetEvent('fxrp:fdc-requested', { message: status.message, txHash: paymentResult.txHash });
       document.getElementById('step-fdc')!.className = 'step-node completed';
       document.getElementById('step-proof')!.className = 'step-node active';
     } else if (status.state === 'FdcProofReady') {
       log(status.message, 'success');
+      emitWidgetEvent('fxrp:proof-ready', { message: status.message, txHash: paymentResult.txHash });
       document.getElementById('step-proof')!.className = 'step-node completed';
       document.getElementById('step-execute')!.className = 'step-node active';
     } else if (status.state === 'SubmittingFinalization') {
       log(status.message, 'info');
+      emitWidgetEvent('fxrp:submitting-finalization', { message: status.message, txHash: paymentResult.txHash });
     } else if (status.state === 'Delayed') {
       log(status.message, 'warning');
+      emitWidgetEvent('fxrp:mint-delayed', { message: status.message, allowedAt: status.allowedAt });
       saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Delayed');
       handleDelayedState(status.allowedAt!);
     } else if (status.state === 'Complete') {
       log(status.message, 'success');
+      lastCompletedReceipt = {
+        type: 'Mint',
+        amount: `${currentLots * 10} FXRP`,
+        xrplTxHash: paymentResult.txHash,
+        recipientEvmAddress: evmAddress,
+        routingMode,
+        timestamp: new Date().toISOString(),
+        network: 'Flare Coston2 Testnet',
+      };
+      emitWidgetEvent('fxrp:mint-complete', lastCompletedReceipt);
+      showToast('🎉 FXRP Direct Mint Finalized Successfully!', 'success');
       saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Complete');
       document.getElementById('step-execute')!.className = 'step-node completed';
       
@@ -1495,6 +1704,8 @@ async function runFinalizationFlow(paymentResult: any) {
 
     } else if (status.state === 'Failed') {
       log(status.message, 'error');
+      emitWidgetEvent('fxrp:mint-failed', { error: status.error || status.message, txHash: paymentResult.txHash });
+      showToast(`Minting failed: ${status.message}`, 'error');
       saveTxToHistory('Mint', `${currentLots * 10} FXRP`, paymentResult.txHash, 'Failed');
       if (status.error) {
         console.error(status.error);
