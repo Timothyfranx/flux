@@ -194,6 +194,5 @@ async function main() {
     console.log('Note: On-chain confirmation requires the payment source address to match the registered FAssets agent vault address.');
   }
 }
-}
 
 main();
