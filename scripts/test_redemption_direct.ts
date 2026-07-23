@@ -188,22 +188,12 @@ async function main() {
     console.log(`Confirm Tx Hash: ${confirmTx}. Waiting for confirmation...`);
     await publicClient.waitForTransactionReceipt({ hash: confirmTx });
     console.log('>>> Redemption payment confirmed on-chain successfully!');
-    console.log('Redemption end-to-end integration flow verified!');
   } catch (err: any) {
-    const errMsg = err.message || '';
-    const isInvalidSource = errMsg.includes('0xf6e2f99b');
-    
-    if (errMsg.includes('0xba0514c0') || errMsg.toLowerCase().includes('invalidrequestid') || isInvalidSource) {
-      if (isInvalidSource) {
-        console.log('>>> Payout verified by FDC! Note: ticket remains open since payment was simulated from test seed instead of the registered agent vault address.');
-      } else {
-        console.log('>>> Redemption ticket already finalized or expired. Verification complete!');
-      }
-      console.log('Redemption end-to-end integration flow verified!');
-      return;
-    }
-    console.error('Agent payout or confirmation failed:', errMsg);
+    const errMsg = err.message || err;
+    console.error(`CONFIRMATION FAILED: ${errMsg}`);
+    console.log('Note: On-chain confirmation requires the payment source address to match the registered FAssets agent vault address.');
   }
+}
 }
 
 main();

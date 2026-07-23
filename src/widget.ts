@@ -431,6 +431,45 @@ function updateTechnicalDetails(evmAddr: string, txHash: string) {
 }
 
 /**
+ * Automatically prompts the user's connected wallet (MetaMask, Rabby, Bifrost, etc.)
+ * to switch to or add the Flare Coston2 Testnet (Chain ID 114 / 0x72).
+ */
+async function ensureCoston2Network(provider: any) {
+  if (!provider || !provider.request) return;
+  const coston2ChainIdHex = '0x72'; // 114 in hex
+
+  try {
+    await provider.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: coston2ChainIdHex }],
+    });
+  } catch (switchError: any) {
+    if (switchError.code === 4902 || switchError.message?.includes('Unrecognized chain ID') || switchError.message?.includes('4902') || switchError.code === -32603) {
+      try {
+        await provider.request({
+          method: 'wallet_addEthereumChain',
+          params: [
+            {
+              chainId: coston2ChainIdHex,
+              chainName: 'Flare Testnet Coston2',
+              nativeCurrency: {
+                name: 'Coston2 Flare',
+                symbol: 'C2FLR',
+                decimals: 18,
+              },
+              rpcUrls: ['https://coston2-api.flare.network/ext/C/rpc'],
+              blockExplorerUrls: ['https://coston2-explorer.flare.network'],
+            },
+          ],
+        });
+      } catch (addError) {
+        console.error('Failed to add Coston2 network to EVM wallet:', addError);
+      }
+    }
+  }
+}
+
+/**
  * Connects browser wallet (MetaMask/Bifrost) dynamically using window.ethereum.
  */
 async function connectBrowserWallet(): Promise<boolean> {
@@ -441,7 +480,6 @@ async function connectBrowserWallet(): Promise<boolean> {
   }
 
   if (isDevMode) {
-    // In dev mode, we bypass MetaMask checks and allow simulated EVM wallets
     const pkInput = document.getElementById('dev-flare-pk') as HTMLInputElement;
     const devPk = pkInput ? pkInput.value.trim() : '';
     
@@ -453,15 +491,15 @@ async function connectBrowserWallet(): Promise<boolean> {
       } catch {}
     }
 
-    // Derive address directly from current input; no localStorage fallback is allowed for security
-
-    evmAddress = derivedAddress || '0x7bEa8C45F0cE61DF69914f5b04fa62a3D6f1E53c';
-    log(`Simulated EVM wallet connected: ${evmAddress}`, 'success');
-    emitWidgetEvent('fxrp:connected', { address: evmAddress });
-    if (routingMode === 'tag') {
-      updateUserTagsDropdown().catch(console.error);
+    if (derivedAddress) {
+      evmAddress = derivedAddress;
+      log(`Simulated EVM wallet connected: ${evmAddress}`, 'success');
+      emitWidgetEvent('fxrp:connected', { address: evmAddress });
+      if (routingMode === 'tag') {
+        updateUserTagsDropdown().catch(console.error);
+      }
+      return true;
     }
-    return true;
   }
 
   const provider = (window as any).ethereum;
@@ -477,6 +515,7 @@ async function connectBrowserWallet(): Promise<boolean> {
   }
 
   try {
+    await ensureCoston2Network(provider);
     const accounts = await provider.request({ method: 'eth_requestAccounts' });
     if (!accounts || accounts.length === 0) {
       const msg = 'EVM account connection rejected by user.';
@@ -965,6 +1004,7 @@ function setupEventListeners() {
     try {
       // Connect custom wallet client if available
       if ((window as any).ethereum) {
+        await ensureCoston2Network((window as any).ethereum);
         const publicClient = createPublicClient({ transport: http(FLARE_RPC_URL) });
         const walletClient = createWalletClient({
           account: evmAddress as Address,
