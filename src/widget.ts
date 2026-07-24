@@ -6,6 +6,7 @@ import { flareTestnet } from 'viem/chains';
 import { Client as XrplClient } from 'xrpl';
 import * as QRCode from 'qrcode';
 import { fetchFdcProof } from './utils/proof';
+import { getFriendlyWalletError } from './utils/wallet_errors';
 
 // Coston2 Constants
 const REGISTRY_ADDRESS = '0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019';
@@ -545,7 +546,7 @@ async function connectBrowserWallet(): Promise<boolean> {
     return true;
   } catch (error: any) {
     console.error('Wallet connection failed:', error);
-    const msg = `Wallet connection failed: ${error.message || error}`;
+    const msg = `Wallet connection failed: ${getFriendlyWalletError(error)}`;
     if (statusMsgEl) {
       statusMsgEl.innerText = msg;
       statusMsgEl.classList.remove('hidden');
@@ -1022,8 +1023,10 @@ function setupEventListeners() {
       dropdownTags.value = tagId.toString();
       destinationTag = Number(tagId);
     } catch (err: any) {
-      console.error(err);
-      alert(`Tag reservation failed: ${err.message || err}`);
+      console.error('Tag reservation error:', err);
+      const friendlyMsg = getFriendlyWalletError(err);
+      alert(`Tag reservation failed: ${friendlyMsg}`);
+      showToast(`Tag reservation failed: ${friendlyMsg}`, 'error');
     } finally {
       (btnReserveTag as HTMLButtonElement).innerText = 'Reserve Tag';
       btnReserveTag.removeAttribute('disabled');
@@ -1346,10 +1349,11 @@ async function requestRedemption(amountFXRP: number, xrpAddress: string): Promis
     }
   } catch (err: any) {
     console.error('Redemption failed:', err);
-    log(`Redemption failed: ${err.message || err}`, 'error');
-    emitWidgetEvent('fxrp:redeem-failed', { error: err.message || err });
-    showToast(`Redemption failed: ${err.message || err}`, 'error');
-    alert(`Redemption failed: ${err.message || err}`);
+    const friendlyMsg = getFriendlyWalletError(err);
+    log(`Redemption failed: ${friendlyMsg}`, 'error');
+    emitWidgetEvent('fxrp:redeem-failed', { error: friendlyMsg });
+    showToast(`Redemption failed: ${friendlyMsg}`, 'error');
+    alert(`Redemption failed: ${friendlyMsg}`);
     return false;
   }
 }
