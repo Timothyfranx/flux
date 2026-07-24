@@ -62,10 +62,15 @@ export class FXRPDirectMintSDK {
   /**
    * Sets or updates the walletClient dynamically (e.g. when connecting in a browser).
    */
-  public setWalletClient(walletClient: any, evmAccountAddress?: string) {
+  public setWalletClient(walletClient: any, evmAccountAddress?: string | any) {
     this.walletClient = walletClient;
     if (evmAccountAddress) {
-      this.evmAccountAddress = evmAccountAddress as Address;
+      if (typeof evmAccountAddress === 'object') {
+        this.evmAccount = evmAccountAddress;
+        this.evmAccountAddress = evmAccountAddress.address;
+      } else {
+        this.evmAccountAddress = evmAccountAddress as Address;
+      }
     }
   }
 

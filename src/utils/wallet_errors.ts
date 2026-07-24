@@ -38,6 +38,15 @@ export function getFriendlyWalletError(err: any): string {
     return 'Please switch your wallet to Flare Testnet Coston2 and try again.';
   }
 
-  // 4. Fallback — return original message unchanged
+  // 4. Agent Vault Payout Confirmation Mismatch check
+  if (
+    msgLower.includes('0xf6e2f99b') ||
+    msgLower.includes('0xba0514c0') ||
+    msgLower.includes('invalidrequestid')
+  ) {
+    return "Redemption is confirmed on-chain and awaiting payout from the assigned Agent Vault — this can't be completed by a test wallet.";
+  }
+
+  // 5. Fallback — return original message unchanged
   return rawMessage;
 }

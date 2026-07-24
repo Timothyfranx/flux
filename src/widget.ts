@@ -1510,7 +1510,8 @@ async function runRedemptionFinalizationFlow(paymentResult: any, requestId: bigi
     }
 
     console.error('Redemption finalization failed:', err);
-    log(`Redemption finalization failed: ${errMsg}`, 'error');
+    const friendlyMsg = getFriendlyWalletError(err);
+    log(`Redemption finalization failed: ${friendlyMsg}`, 'error');
     saveTxToHistory('Redeem', `${amountVal} FXRP`, paymentResult.txHash, 'Failed');
     document.getElementById('step-execute')!.className = 'step-node failed';
   }
@@ -1638,7 +1639,8 @@ async function simulateAgentPayout() {
     await runRedemptionFinalizationFlow(paymentResult, BigInt(redemptionId));
 
   } catch (err: any) {
-    log(`[Simulation] Payout broadcast failed: ${err.message || err}`, 'error');
+    const friendlyMsg = getFriendlyWalletError(err);
+    log(`[Simulation] Payout broadcast failed: ${friendlyMsg}`, 'error');
   }
 }
 
@@ -1709,7 +1711,8 @@ async function simulatePaymentSigning() {
     await runFinalizationFlow(paymentResult);
 
   } catch (error: any) {
-    log(`Simulation process failed: ${error.message || error}`, 'error');
+    const friendlyMsg = getFriendlyWalletError(error);
+    log(`Simulation process failed: ${friendlyMsg}`, 'error');
   }
 }
 
