@@ -72,7 +72,7 @@ let container: HTMLElement;
 /**
  * Self-mounts and draws the quiet, flat Stripe-like dashboard layout.
  */
-function mountWidget() {
+export function mountWidget() {
   container = document.getElementById('fxrp-mint-widget')!;
   if (!container) {
     console.warn('FXRP Mint Widget: #fxrp-mint-widget not found.');
@@ -281,8 +281,9 @@ function mountWidget() {
           </div>
           
           <div class="wallet-card" id="pay-memo-container">
-            <div class="wallet-meta">
+            <div class="wallet-meta" style="display: flex; justify-content: space-between; align-items: center;">
               <span class="wallet-label">Memo (Hex)</span>
+              <button id="btn-copy-memo-only" type="button" style="background: none; border: 1px solid var(--border-color); color: var(--text-primary); padding: 2px 6px; font-size: 10px; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Copy Memo</button>
             </div>
             <div id="pay-memo" class="wallet-address" style="font-size: 11px; margin-top: 4px; word-break: break-all; user-select: all; cursor: pointer;">--</div>
           </div>
@@ -608,7 +609,7 @@ function log(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info
 /**
  * Initializes wallets and balance queries.
  */
-async function initializeWidget() {
+export async function initializeWidget() {
   if (!mountWidget()) return;
 
   // Initialize main SDK (without seed or private key! Non-custodial!)
@@ -1091,6 +1092,21 @@ function setupEventListeners() {
       console.error('Recovery failed:', err);
       alert(`Recovery failed: ${err.message || err}`);
       showToast(`Recovery error: ${err.message || err}`, 'error');
+    }
+  });
+
+  // Copy Memo Only button
+  const btnCopyMemoOnly = document.getElementById('btn-copy-memo-only');
+  btnCopyMemoOnly?.addEventListener('click', async () => {
+    if (!memoHex) {
+      showToast('Memo hex not generated yet', 'warning');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(memoHex);
+      showToast('📋 Memo Hex copied to clipboard!', 'success');
+    } catch (err) {
+      showToast('Failed to copy memo to clipboard', 'error');
     }
   });
 

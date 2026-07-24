@@ -1,6 +1,7 @@
-export * from './FXRPDirectMintSDK';
-export * from './types';
-export { encodeDirectMintingMemo } from './utils/memo';
-export { prepareFdcRequestBytes, toBytes32Padded, receivingAddressToHash } from './utils/verifier';
-export { calculateVotingRoundId, fetchFdcProof, FdcProof } from './utils/proof';
-export { waitForDirectMintingOutcome, getDirectMintingDelayState, DirectMintingOutcome } from './utils/waiting';
+/**
+ * Flux - Embeddable FXRP Direct Minting SDK & Widget for Flare
+ */
+
+export { FXRPDirectMintSDK } from './FXRPDirectMintSDK';
+export { mountWidget, initializeWidget } from './widget';
+export type { PaymentParams, MintStatus, FXRPDirectMintConfig } from './types';

@@ -146,6 +146,15 @@
           <button class="layout-btn" data-layout="floating" style="flex: 1; padding: 10px; font-size: 11px; font-weight: 600; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); cursor: pointer; font-family: inherit; transition: all 0.15s ease;">Docked</button>
         </div>
       </div>
+
+      <!-- Embed Code Snippet Generator -->
+      <div style="border-top: 1px solid var(--border-color); padding-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <label style="font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: uppercase;">dApp Embed Code</label>
+          <button id="btn-copy-embed-snippet" type="button" style="background: none; border: 1px solid var(--border-color); color: var(--text-primary); padding: 2px 6px; font-size: 10px; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Copy</button>
+        </div>
+        <textarea id="embed-snippet-text" readonly style="width: 100%; height: 95px; font-family: monospace; font-size: 10px; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); resize: none; box-sizing: border-box; outline: none;"></textarea>
+      </div>
     </aside>
 
     <div class="dashboard-container" style="flex: 1; max-width: 680px;">
@@ -392,8 +401,39 @@
             b.classList.remove('active');
           });
           btn.style.borderColor = 'var(--text-primary)';
+      let currentTheme = 'dark';
+      let currentAccent = '#FF003B';
+      let currentPlacement = 'inline';
+
+      function updateEmbedSnippetText() {
+        const textarea = document.getElementById('embed-snippet-text') as HTMLTextAreaElement;
+        if (!textarea) return;
+        textarea.value = `<!-- Flux Embed Widget -->\n<script src="./dist/widget.js"><\/script>\n<div id="fxrp-mint-widget"\n     data-theme="${currentTheme}"\n     data-accent="${currentAccent}"\n     data-placement="${currentPlacement}"></div>`;
+      }
+      updateEmbedSnippetText();
+
+      const btnCopySnippet = document.getElementById('btn-copy-embed-snippet');
+      btnCopySnippet?.addEventListener('click', async () => {
+        const textarea = document.getElementById('embed-snippet-text') as HTMLTextAreaElement;
+        if (!textarea) return;
+        try {
+          await navigator.clipboard.writeText(textarea.value);
+          btnCopySnippet.innerText = '✓ Copied!';
+          setTimeout(() => btnCopySnippet.innerText = '📋 Copy', 2000);
+        } catch (err) {}
+      });
+
+      colorBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          colorBtns.forEach(b => {
+            b.style.borderColor = 'transparent';
+            b.classList.remove('active');
+          });
+          btn.style.borderColor = 'var(--text-primary)';
           btn.classList.add('active');
           const color = btn.getAttribute('data-color');
+          currentAccent = color || '#FF003B';
+          updateEmbedSnippetText();
           // Update accent color variables on the document root
           document.documentElement.style.setProperty('--color-accent', color);
           if (launcher) {
@@ -408,6 +448,8 @@
           themeBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           const theme = btn.getAttribute('data-theme');
+          currentTheme = theme || 'dark';
+          updateEmbedSnippetText();
           const rootStyle = document.documentElement.style;
           if (theme === 'light') {
             rootStyle.setProperty('--bg-primary', '#F8FAFC');
@@ -430,6 +472,8 @@
           layoutBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           const layout = btn.getAttribute('data-layout');
+          currentPlacement = layout || 'inline';
+          updateEmbedSnippetText();
           if (layout === 'floating') {
             // Anchor widget to bottom right
             widget.classList.add('floating');
