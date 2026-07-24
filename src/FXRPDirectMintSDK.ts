@@ -284,6 +284,34 @@ export class FXRPDirectMintSDK {
   }
 
   /**
+   * Queries the list of available whitelisted Agent Vaults on-chain.
+   */
+  public async getAvailableAgents(start: number = 0, limit: number = 50): Promise<any[]> {
+    await this.resolveContractAddresses();
+    try {
+      const [detailedAgents] = (await this.publicClient.readContract({
+        address: this.assetManagerAddress!,
+        abi: coston2.iAssetManagerAbi,
+        functionName: 'getAvailableAgentsDetailedList',
+        args: [BigInt(start), BigInt(limit)],
+      })) as [any[], bigint];
+
+      return detailedAgents.map((agent: any) => ({
+        agentVault: agent.agentVault,
+        ownerManagementAddress: agent.ownerManagementAddress,
+        feeBIPS: Number(agent.feeBIPS),
+        freeCollateralLots: Number(agent.freeCollateralLots),
+        mintingVaultCollateralRatioBIPS: Number(agent.mintingVaultCollateralRatioBIPS),
+        mintingPoolCollateralRatioBIPS: Number(agent.mintingPoolCollateralRatioBIPS),
+        status: Number(agent.status),
+      }));
+    } catch (err) {
+      console.error('Failed to query available agents list:', err);
+      return [];
+    }
+  }
+
+  /**
    * Prepares the parameters for a tag-based direct minting XRPL payment (numerical tag only).
    */
   public async prepareTagPayment(params: {

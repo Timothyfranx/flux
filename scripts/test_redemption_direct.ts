@@ -133,8 +133,10 @@ async function main() {
   const eventData = logs[0].args;
   const redemptionId = (eventData.requestId || eventData.redemptionId).toString();
   const paymentReference = eventData.paymentReference;
+  const agentVault = eventData.agentVault;
   console.log(`>>> Redemption Requested successfully!`);
   console.log(`>>> Redemption ID: ${redemptionId}`);
+  console.log(`>>> Assigned Agent Vault: ${agentVault}`);
   console.log(`>>> Payment Reference: ${paymentReference}`);
 
   // 4. Simulate Agent Payout on XRPL
