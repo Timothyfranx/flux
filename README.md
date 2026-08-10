@@ -1,49 +1,68 @@
 # FXRP Embed ⚡
 
-**FXRP Embed** is a modular, high-fidelity, and trustless onboarding widget and SDK that enables any Flare dApp, wallet, or exchange to integrate direct minting of **FXRP** (FAssets) from XRP testnet in minutes.
+**FXRP Embed** is a modular, high-fidelity, and trustless onboarding widget and SDK that enables any Flare dApp, wallet, or DeFi platform to integrate direct minting and redemption of **FXRP** (FAssets) from the XRP testnet in minutes.
 
 Built for **Flare Summer Signal (Bounty 1: Interoperable Asset Products)**.
 
 ---
 
-## 🚀 The Integration UX
+## 🚀 Key Features
 
-Integrators can embed the full, premium FXRP Direct Minting Dashboard into their app with just two lines of code:
-
-```html
-<!-- 1. Place the mount container anywhere in your HTML -->
-<div id="fxrp-mint-widget"></div>
-
-<!-- 2. Import stylesheet and script -->
-<link rel="stylesheet" href="style.css">
-<script src="dist/widget.js"></script>
-```
-
-Upon loading, the script self-mounts the dashboard inside the container, automatically resolving FAsset settings and loading balances.
+* **Dual Direct Minting Routing Modes (FAssets v1.3):**
+  * **Memo-Based Routing:** Encodes recipient EVM addresses directly into the XRPL `MemoData` field.
+  * **Tag-Based Routing:** Binds recipient EVM addresses on-chain to reusable numerical Destination Tags via `IMintingTagManager` (`reserveMintingTag()`).
+* **1-Tap Mobile XRPL Payment URIs & Pre-Filled QR Codes:**
+  * Uses standard `xrpl://pay` payment URIs.
+  * Scanning the canvas QR code or tapping **"📱 Pay in Xaman / Wallet"** opens Xaman (Xumm) or Bifrost with Destination Address, XRP Amount, and Memo/Tag **100% pre-filled automatically** — zero manual copy/pasting.
+* **Flare Data Connector (FDC) Verification:**
+  * Uses `XRPPayment` attestation type (`0x08`) to verify account-based XRPL transactions on-chain.
+  * Automates voting round calculations and cryptographic Merkle proof retrieval from the Data Availability (DA) Layer.
+* **Rate-Limiter Countdown Timer:**
+  * Intercepts `0x40d8d67b` (`DirectMintingStillDelayed`) custom reverts and displays an automated countdown timer in the UI.
+* **Unified EVM Wallet Error Translation:**
+  * Translates raw wallet reverts (user rejections, insufficient C2FLR gas, chain mismatches, and agent vault payout dependencies) into human-readable notifications.
+* **Embed Code Generator & Package Entrypoints:**
+  * Live HTML/JS embed snippet generator in the demo app sidebar (`integrator-demo/index.html`).
+  * Package entrypoint [`src/index.ts`](./src/index.ts) exports `FXRPDirectMintSDK`, `mountWidget`, `initializeWidget`, and core types.
 
 ---
 
-## 🛠️ Programmatic SDK Usage
+## 💻 Integrator Usage
 
-Integrators who want to build their own custom UI can use the underlying `@flux/sdk` (`FXRPDirectMintSDK` class) programmatically:
+### 1. Two-Line HTML Embed
+Integrators can embed the FXRP Direct Minting Widget into any dApp frontend in two lines:
+
+```html
+<!-- 1. Place mount target container -->
+<div id="fxrp-mint-widget" data-theme="dark" data-accent="#00F0FF"></div>
+
+<!-- 2. Import widget script -->
+<script src="dist/widget.js"></script>
+```
+
+---
+
+### 2. Programmatic SDK Usage
+
+Integrators building custom UIs can import `FXRPDirectMintSDK` (`src/index.ts`):
 
 ```typescript
 import { FXRPDirectMintSDK } from './FXRPDirectMintSDK';
 import { createWalletClient, custom } from 'viem';
 import { flareTestnet } from 'viem/chains';
 
-// 1. Initialize the SDK (Zero Custody — no private keys or seeds required!)
+// 1. Initialize SDK (Zero Custody — no private keys or seeds required in production!)
 const sdk = new FXRPDirectMintSDK({
-  xrplUrl: 'wss://s.altnet.rippletest.net:51233',
+  xrplUrl: 'wss://clio.altnet.rippletest.net:51233',
   flareRpcUrl: 'https://coston2-api.flare.network/ext/C/rpc',
   registryAddress: '0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019',
 });
 
-// 2. Fetch live settings
+// 2. Fetch live protocol settings
 const settings = await sdk.getSettings();
 console.log(`Lot Size: ${settings.lotSizeXRP} XRP`);
 
-// 3. Connect user's EVM browser wallet (e.g. Bifrost or MetaMask)
+// 3. Connect browser wallet (MetaMask, Bifrost, Rabby)
 const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
 const walletClient = createWalletClient({
   chain: flareTestnet,
@@ -51,55 +70,16 @@ const walletClient = createWalletClient({
 });
 sdk.setWalletClient(walletClient, account);
 
-// 4. Prepare payment details & binary memo encoding
+// 4. Prepare payment parameters & memo encoding
 const paymentParams = await sdk.preparePayment({
   recipientEvmAddress: account,
   lots: 1
 });
 
 console.log(`Vault Destination: ${paymentParams.vaultAddressXRP}`);
-console.log(`Expected XRP: ${paymentParams.totalXRP}`);
-console.log(`Encoded Memo: ${paymentParams.memoHex}`);
-
-// 5. User submits the transaction from their XRP wallet (e.g. scanning QR code)
-// 6. Monitor progress through FDC proof & finalization on Flare
-const paymentResult = {
-  txHash: '0xYourXRPLPaymentTransactionHash',
-  blockTimestamp: 1783607782, // Unix timestamp of payment validation
-  spentAmountDrops: '10200000',
-  receivedAmountDrops: '10200000',
-  receivingAddressXRP: paymentParams.vaultAddressXRP,
-};
-
-await sdk.monitorStatus(paymentResult, (status) => {
-  console.log(`State: ${status.state} | Message: ${status.message}`);
-  if (status.state === 'Delayed') {
-    console.log(`Limiter hit. Allowed to execute at: ${status.allowedAt}`);
-  }
-});
+console.log(`Total XRP: ${paymentParams.totalXRP}`);
+console.log(`Memo Hex: ${paymentParams.memoHex}`);
 ```
-
----
-
-## ⛓️ Multi-Chain Support & Scaffold
-
-**FXRP Embed** is designed with multi-chain expansion in mind:
-*   **Production State (`main`):** To guarantee 100% correct execution with zero mock dependencies, the production widget on `main` focuses exclusively on **FXRP (Ripple)**, which is the only active FAsset officially deployed and registered on the Coston2 testnet.
-*   **Multi-Chain Scaffold (`feat/multichain-scaffold`):** Multi-chain onboarding workflows for **FBTC** and **FDOGE** (using FDC type `0x02` `Payment` attestations and UTXO `OP_RETURN` script generation) are under active development and prototyping on the dedicated branch:
-    ```bash
-    git checkout feat/multichain-scaffold
-    ```
-    *Note: The BTC and DOGE code paths on that branch represent unverified scaffolding, as the corresponding underlying asset managers are not currently registered or funded on the public Coston2 network.*
-
----
-
-## ⚡ Direct Minting & FDC Mechanics
-
-The SDK and Widget participate in the **FAssets v1.3 Direct Minting** architecture on Flare Coston2 testnet:
-1. **Memo-Based Routing:** Formats the recipient EVM address into a 32-byte direct-minting binary memo, allowing trustless, database-free destination resolution directly from the XRPL payment.
-2. **FDC Attestation Verification:** Prepares attestation bytes and requests FDC validation (`XRPPayment`) on-chain via the `FdcHub` contract.
-3. **Data Availability (DA) Layer Retrieval:** Calculates FDC voting rounds using `IFlareSystemsManager` parameters, fetches cryptographic validation proofs, and decodes the `response_hex` payload.
-4. **Limiter & Delay State Management:** Automatically captures custom error `0x40d8d67b` (Direct Minting Limiter Delay). Instead of silently failing, the SDK decodes the revert cause, queries `directMintingDelayState` to extract the `allowedAt` unlock timestamp, and starts a countdown timer to auto-execute when rate limits clear.
 
 ---
 
@@ -111,7 +91,7 @@ Clone the repository and install dependencies:
 npm install
 ```
 
-### 2. Configure Environment
+### 2. Configure Environment (Optional for Automated Terminal Tests)
 Create a `.env` file in the root directory:
 ```env
 XRPL_SEED=sYourTestnetSeedKey
@@ -119,15 +99,21 @@ COSTON2_PRIVATE_KEY=0xYourFlarePrivateKey
 ```
 
 ### 3. Build & Run
-* **Build Frontend Bundle:** Compiles and packages the SDK and widget for the browser:
+* **Build Frontend Bundle:** Compiles and packages the widget for browser deployment:
   ```bash
   npm run build
   ```
-* **Start Dev Server:** Launches a lightweight local HTTP server:
+* **Start Local Server:**
   ```bash
   npm run dev
   ```
 
-Open your browser and navigate to:
-* **Standalone Dashboard:** `http://localhost:8080/index.html`
-* **DeFi Integrator Demo (Kinetic Finance):** `http://localhost:8080/integrator-demo/index.html`
+Open your browser to:
+* **Direct Minting Application:** `http://localhost:8080/index.html`
+* **dApp Integrator Demo (Kinetic Finance):** `http://localhost:8080/integrator-demo/index.html`
+
+---
+
+## 📄 Documentation & Hackathon Write-Up
+
+Full architecture diagrams, security boundary specifications, and hackathon submission details are in [`SUBMISSION.md`](./SUBMISSION.md).
