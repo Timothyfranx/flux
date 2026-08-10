@@ -540,6 +540,14 @@ async function connectBrowserWallet(): Promise<boolean> {
 
     sdk.setWalletClient(walletClient, evmAddress);
     emitWidgetEvent('fxrp:connected', { address: evmAddress });
+
+    // Update action buttons text to show connected wallet state
+    const mintBtn = document.getElementById('btn-initialize-mint');
+    const redeemBtn = document.getElementById('btn-initialize-redeem');
+    const shortAddr = `${evmAddress.slice(0, 6)}...${evmAddress.slice(-4)}`;
+    if (mintBtn) mintBtn.innerText = `Connected (${shortAddr}) — Mint FXRP`;
+    if (redeemBtn) redeemBtn.innerText = `Connected (${shortAddr}) — Redeem FXRP`;
+
     if (routingMode === 'tag') {
       updateUserTagsDropdown().catch(console.error);
     }
@@ -738,11 +746,18 @@ function setupEventListeners() {
         let paymentParams;
         if (routingMode === 'tag') {
           if (destinationTag === undefined || destinationTag === null) {
-            alert('Please select or reserve a destination tag to proceed with Tag-Based routing.');
-            // Revert state transitions
-            document.getElementById('phase-idle')!.classList.remove('hidden');
-            document.getElementById('phase-payment')!.classList.add('hidden');
-            return;
+            try {
+              log('No reserved tag selected. Reserving a new Destination Tag on Coston2...', 'info');
+              const reservation = await sdk.reserveMintingTag();
+              destinationTag = Number(reservation.tagId);
+              log(`Minting Tag ID #${destinationTag} reserved successfully!`, 'success');
+              await updateUserTagsDropdown();
+            } catch (err: any) {
+              alert(`Tag Reservation required for Tag-Based routing: ${getFriendlyWalletError(err)}`);
+              document.getElementById('phase-idle')!.classList.remove('hidden');
+              document.getElementById('phase-payment')!.classList.add('hidden');
+              return;
+            }
           }
           paymentParams = await sdk.prepareTagPayment({
             recipientEvmAddress: evmAddress,
