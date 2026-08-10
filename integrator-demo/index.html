@@ -394,19 +394,12 @@
       const launcher = document.getElementById('floating-widget-launcher');
       const mountingZone = document.querySelector('.widget-mounting-zone');
 
-      colorBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          colorBtns.forEach(b => {
-            b.style.borderColor = 'transparent';
-            b.classList.remove('active');
-          });
-          btn.style.borderColor = 'var(--text-primary)';
       let currentTheme = 'dark';
       let currentAccent = '#FF003B';
       let currentPlacement = 'inline';
 
       function updateEmbedSnippetText() {
-        const textarea = document.getElementById('embed-snippet-text') as HTMLTextAreaElement;
+        const textarea = document.getElementById('embed-snippet-text');
         if (!textarea) return;
         textarea.value = `<!-- Flux Embed Widget -->\n<script src="./dist/widget.js"><\/script>\n<div id="fxrp-mint-widget"\n     data-theme="${currentTheme}"\n     data-accent="${currentAccent}"\n     data-placement="${currentPlacement}"></div>`;
       }
@@ -414,7 +407,7 @@
 
       const btnCopySnippet = document.getElementById('btn-copy-embed-snippet');
       btnCopySnippet?.addEventListener('click', async () => {
-        const textarea = document.getElementById('embed-snippet-text') as HTMLTextAreaElement;
+        const textarea = document.getElementById('embed-snippet-text');
         if (!textarea) return;
         try {
           await navigator.clipboard.writeText(textarea.value);
