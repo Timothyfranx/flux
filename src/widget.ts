@@ -813,17 +813,24 @@ function setupEventListeners() {
           };
         }
 
+        // Construct standard XRPL payment URI (pre-fills to, amount, memo / tag in Xaman & Bifrost)
+        const xrplUri = routingMode === 'tag'
+          ? `xrpl://pay?to=${vaultAddressXRP}&amount=${targetXRP}&dt=${destinationTag}`
+          : `xrpl://pay?to=${vaultAddressXRP}&amount=${targetXRP}&memo=${memoHex}`;
+
         const canvas = document.getElementById('wallet-qr-code-canvas') as HTMLCanvasElement;
         if (canvas) {
-          QRCode.toCanvas(canvas, JSON.stringify(txJson), { width: 220, margin: 1 }, (err) => {
-            if (err) console.error('Error generating QR code client-side:', err);
+          QRCode.toCanvas(canvas, xrplUri, { width: 220, margin: 1 }, (err) => {
+            if (err) {
+              console.error('Error generating QR code client-side, falling back to JSON:', err);
+              QRCode.toCanvas(canvas, JSON.stringify(txJson), { width: 220, margin: 1 });
+            }
           });
         }
 
         const deepLinkBtn = document.getElementById('btn-xaman-deeplink') as HTMLAnchorElement;
         if (deepLinkBtn) {
-          const encodedPayload = encodeURIComponent(JSON.stringify(txJson));
-          deepLinkBtn.href = `https://xumm.app/detect/xapp:xumm.tx?payload=${encodedPayload}`;
+          deepLinkBtn.href = xrplUri;
         }
 
         emitWidgetEvent('fxrp:mint-started', {
